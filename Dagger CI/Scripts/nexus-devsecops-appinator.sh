@@ -9,7 +9,7 @@ echo 'docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged
 chmod +x /usr/local/bin/SEC
 
 # Create the OPS command script
-echo 'docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 1060:1050 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64' > /usr/local/bin/OPS
+echo 'docker run -itd --name=Underground-Ops -h Underground-Ops --privileged --init -p 1060:1050 -v /dev:/dev -v underground-ops-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64' > /usr/local/bin/OPS
 chmod +x /usr/local/bin/OPS
 
 echo "Commands have been added to /usr/local/bin and are now executable."
