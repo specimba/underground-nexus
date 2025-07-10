@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Create the DEV command script
-echo 'docker run -itd --name=nexus-creator-vault -h nexus-creator-vault -p 1050:3000 -e PUID=1050 -e PGID=1050 -e TZ=America/Colorado --restart unless-stopped -v /dev:/dev -v creator-vault0:/config -v /var/run/docker.sock:/var/run/docker.sock natoascode/zero-trust-cockpit:creator-vault' > /usr/local/bin/DEV
+echo 'docker run -itd --name=nexus-creator-vault -h nexus-creator-vault --privileged -p 1050:3000 -e PUID=1050 -e PGID=1050 -e TZ=America/Colorado --restart unless-stopped -v /dev:/dev -v creator-vault0:/config -v /var/run/docker.sock:/var/run/docker.sock natoascode/zero-trust-cockpit:creator-vault' > /usr/local/bin/DEV
 chmod +x /usr/local/bin/DEV
 
 # Create the SEC command script
