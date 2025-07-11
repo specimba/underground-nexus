@@ -116,7 +116,7 @@ RUN echo "docker exec workbench echo "docker exec workbench sudo mv /terraform-w
 RUN echo "docker exec workbench echo "docker exec workbench sudo apt -y update --fix-missing" >> /nexus-bucket/workbench.sh" >> deploy-olympiad.sh
 RUN echo "docker exec workbench echo "docker exec workbench sudo apt --fix-broken install -y" >> /nexus-bucket/workbench.sh" >> deploy-olympiad.sh
 RUN echo "docker exec workbench echo "docker exec workbench sudo apt -y upgrade" >> /nexus-bucket/workbench.sh" >> deploy-olympiad.sh
-RUN echo "docker exec workbench echo "docker exec workbench sudo apt install -y virt-manager" >> /nexus-bucket/workbench.sh" >> deploy-olympiad.sh
+RUN echo "docker exec workbench echo "docker exec workbench sudo apt install -y virt-manager && (dpkg -s firefox &> /dev/null || sudo apt install -y firefox || true)" >> /nexus-bucket/workbench.sh" >> deploy-olympiad.sh
 #------------------------------------
 #Change MATE Default Desktop
 RUN echo "docker exec workbench echo "docker exec workbench sudo rm /usr/share/backgrounds/ubuntu-mate-jammy/Jammy-Jellyfish_WP_4096x2304_Green.png" >> /nexus-bucket/workbench.sh" >> deploy-olympiad.sh

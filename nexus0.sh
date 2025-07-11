@@ -33,6 +33,9 @@ apt -y upgrade --fix-broken
 sudo apt install -y qemu-kvm qemu-system qemu-kvm qemu-system-x86 qemu-system-arm64 cpu-checker virt-manager libvirt-daemon-system libvirt-clients
 sudo /usr/sbin/libvirtd &
 sudo /usr/sbin/virtlogd &
+sudo usermod -aG kvm abc
+sudo chown root:kvm /dev/kvm
+sudo chmod 660 /dev/kvm
 
 # Install Ollama LLM
 curl -fsSL https://ollama.com/install.sh | sh
