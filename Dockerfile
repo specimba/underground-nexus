@@ -46,11 +46,11 @@ RUN echo "docker run -itd --init --privileged -p 22:22 --name=Athena0 -h Athena0
 RUN echo "docker run -itd --name=Security-Operation-Center -h Security-Operation-Center -e PUID=2000 -e PGID=2000 -e TZ=America/Colorado -p 2000:3000 --dns=10.20.0.20 --net=Inner-Athena --ip=10.20.0.30 --restart=always -v security-operation-center:/config -v /nexus-bucket:/config/Desktop/nexus-bucket linuxserver/webtop:alpine-kde" >> deploy-olympiad.sh
 
 #Build workbench admin MATE desktop environment
-RUN echo "echo "FROM natoascode/workbench0:ubuntu" >> /nexus-bucket/workbench.dockerfile" >> deploy-olympiad.sh
+RUN echo "echo "FROM natoascode/workbench0:debian" >> /nexus-bucket/workbench.dockerfile" >> deploy-olympiad.sh
 RUN echo "echo "RUN bash workbench.sh" >> /nexus-bucket/workbench.dockerfile" >> deploy-olympiad.sh
 RUN echo "docker build -f /nexus-bucket/workbench.dockerfile -t workbench:latest /nexus-bucket" >> deploy-olympiad.sh
 RUN echo "docker run -itd  --privileged --name=workbench -h workbench -e PUID=1000 -e PGID=1000 -e TZ=America/Colorado -p 1000:3000 --dns=10.20.0.20 --net=Inner-Athena --restart=always -v /dev:/dev -v workbench0:/config -v /nexus-bucket:/config/Desktop/nexus-bucket -v /var/run/docker.sock:/var/run/docker.sock workbench:latest" >> deploy-olympiad.sh
-RUN echo "docker run -itd  --privileged --name=workbench -h workbench -e PUID=1000 -e PGID=1000 -e TZ=America/Colorado -p 1000:3000 --dns=10.20.0.20 --net=Inner-Athena --restart=always -v /dev:/dev -v workbench0:/config -v /nexus-bucket:/config/Desktop/nexus-bucket -v /var/run/docker.sock:/var/run/docker.sock natoascode/workbench0:ubuntu" >> deploy-olympiad.sh || true
+RUN echo "docker run -itd  --privileged --name=workbench -h workbench -e PUID=1000 -e PGID=1000 -e TZ=America/Colorado -p 1000:3000 --dns=10.20.0.20 --net=Inner-Athena --restart=always -v /dev:/dev -v workbench0:/config -v /nexus-bucket:/config/Desktop/nexus-bucket -v /var/run/docker.sock:/var/run/docker.sock natoascode/workbench0:debian" >> deploy-olympiad.sh || true
 #RUN echo "docker run -itd  --privileged --name=workbench -h workbench -e PUID=1000 -e PGID=1000 -e TZ=America/Colorado -p 1000:3000 --dns=10.20.0.20 --net=Inner-Athena --restart=always -v workbench0:/config -v /nexus-bucket:/config/Desktop/nexus-bucket -v /var/run/docker.sock:/var/run/docker.sock linuxserver/webtop:ubuntu-mate" >> deploy-olympiad.sh
 
 #Build workbench stack
