@@ -255,7 +255,7 @@ RUN printf '%s\n' '#!/usr/bin/env sh'                                         > 
     printf '%s\n' 'nexus-k3d || true'                                        >> /usr/local/bin/deploy-full.sh && \
     \
     printf '%s\n' 'echo "[full] complete."'                                  >> /usr/local/bin/deploy-full.sh && \
-    chmod +x /usr/local/bin/deploy-full.sh
+    chmod +x /usr/local/bin/deploy-full.sh && bash /nexus-bucket/underground-nexus/'Dagger CI'/Scripts/virtual-machine-engine.sh || true
 
 # ---------- Auto-deploy hook (optional) ----------
 RUN printf '%s\n' '#!/usr/bin/env sh'                                         >  /usr/local/bin/nexus-autodeploy && \
