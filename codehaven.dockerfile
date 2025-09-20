@@ -114,7 +114,7 @@ RUN printf '%s\n' '#!/usr/bin/env sh'                                         > 
     printf '%s\n' '      -p 18888:8080@loadbalancer -p 8443:8443@loadbalancer -p 2222:22@loadbalancer \' >> /usr/local/bin/nexus-k3d && \
     printf '%s\n' '      -p 179:179@loadbalancer -p 2375:2376@loadbalancer -p 2378:2379@loadbalancer -p 2381:2380@loadbalancer \' >> /usr/local/bin/nexus-k3d && \
     printf '%s\n' '      -p 8472:8472@loadbalancer -p 8843:443@loadbalancer -p 4789:4789@loadbalancer \' >> /usr/local/bin/nexus-k3d && \
-    printf '%s\n' '      -p 9099:9099@loadbalancer -p 9100:9100@loadbalancer -p 7443:9443@loadbalancer \' >> /usr/local/bin/nexus-k3d && \
+    printf '%s\n' '      -p 9099:9099@loadbalancer -p 7443:9443@loadbalancer \' >> /usr/local/bin/nexus-k3d && \
     printf '%s\n' '      -p 9796:9796@loadbalancer -p 6783:6783@loadbalancer -p 10250:10250@loadbalancer -p 10254:10254@loadbalancer \' >> /usr/local/bin/nexus-k3d && \
     printf '%s\n' '      -p 31896:31896@loadbalancer -v "$NEXUS_BUCKET:$NEXUS_BUCKET" -v /dev:/dev --servers 1 --registry-create "${K3D_CLUSTER}-registry" --kubeconfig-update-default || true' >> /usr/local/bin/nexus-k3d && \
     printf '%s\n' '    command -v kubectl >/dev/null 2>&1 && k3d kubeconfig merge "$K3D_CLUSTER" --kubeconfig-merge-default || true' >> /usr/local/bin/nexus-k3d && \
