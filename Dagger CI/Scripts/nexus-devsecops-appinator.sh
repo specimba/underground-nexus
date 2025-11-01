@@ -11,7 +11,7 @@ echo 'docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged
 chmod +x /usr/local/bin/SEC
 
 # Create the OPS command script
-echo 'docker run -itd --name=Underground-Ops -h Underground-Ops --privileged --init -p 1060:1050 -v /dev:/dev -v underground-ops-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64' > /usr/local/bin/OPS
+echo 'docker run -itd --name=Underground-Ops -h Underground-Ops --privileged --init -p 1060:1050 -v /dev:/dev -v underground-ops-docker-socket:/var/run natoascode/underground-nexus:amd64' > /usr/local/bin/OPS
 chmod +x /usr/local/bin/OPS
 
 echo "Commands have been added to /usr/local/bin and are now executable."
@@ -27,6 +27,6 @@ echo 'docker container stop Underground-Nexus && docker container rm Underground
 chmod +x /usr/local/bin/SEC-rebuild
 
 # Create the OPS-rebuild command script
-echo 'docker container stop Underground-Ops && docker container rm Underground-Ops && docker volume rm underground-ops-docker-socket underground-nexus-data nexus-bucket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Ops -h Underground-Ops --privileged --init -p 1060:1050 -v /dev:/dev -v underground-ops-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64' > /usr/local/bin/OPS-rebuild
+echo 'docker container stop Underground-Ops && docker container rm Underground-Ops && docker volume rm underground-ops-docker-socket underground-nexus-data nexus-bucket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Ops -h Underground-Ops --privileged --init -p 1060:1050 -v /dev:/dev -v underground-ops-docker-socket:/var/run natoascode/underground-nexus:amd64' > /usr/local/bin/OPS-rebuild
 chmod +x /usr/local/bin/OPS-rebuild
 
