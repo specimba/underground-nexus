@@ -2,8 +2,7 @@
 
 **Policy-guided automation that builds and governs your infrastructure.**
 
-> **One-liner:**
-> Nexus is a **sovereign systems layer** that uses **curated artifacts** and an **agentic kernel** to assemble, harden, and prove compliant infrastructure—on any hardware or cloud.
+> Underground Nexus is a **sovereign systems layer** that uses **curated artifacts** and an **agentic kernel** to assemble, harden, and prove compliant infrastructure — on any hardware or cloud.
 
 <p align="center">
   <img src="https://github.com/Underground-Ops/underground-nexus/blob/main/Graphics/SVG/cloud-underground-logo.svg" alt="Cloud Underground Logo" width="300px" height="300px">
@@ -14,18 +13,10 @@
 
 ---
 
-## Quick hero (site copy, optional)
+## Learn by Doing with Cloud Jam Gauntlet
 
-**Underground Nexus: Sovereign Systems Layer**
-Turn policies into running systems – build sovereign zones, automate controls, and generate audit evidence by default.
-**CTA:** Explore the Gauntlet → | See the Architecture →
-
-**Underground Nexus: Governance OS**
-Artifact-driven, agent-operated infrastructure. Requirements in. Sovereign zones out. Evidence on.
-**CTA:** Start in the Gauntlet → | Read the README →
-
-> **What we’ve retired:**
-> “Copy/paste data center” and “DevSecOps software factory” (still true internally) are no longer how buyers describe what Nexus does. We also avoid unexplained kernel/Kubernetes jargon on public pages.
+The best way to build your agnostic technical skills using the Underground Nexus and all of Cloud Underground's agnostic develoment tools is to join the Cloud Jam Gauntlet. We'll guide you through a series of challenges, from setting up your sovereign environment to building your own private AI.
+* **Learn effective techniques with this technology with the Cloud Jam Gauntlet:** [https://cloudunderground.dev/products/cloud-jam](https://cloudunderground.dev/products/cloud-jam)
 
 ---
 
@@ -77,7 +68,7 @@ The **Underground Nexus** is a **Sovereign Kernel Layer** – a governance-first
 1. Install Cerberus0 Manager per repo instructions and use its shell to deploy virtual environments.
 2. Use the **`DEV`** command to set up your development workspace and fetch core artifacts.
 3. Use the **`SEC`** command to run a chaos test that builds a golden host appliance template if the test succeeds. (the **`SEC`** command deploys the Dockerfile image in this repository)
-4. Continue in the **Cloud Jam Gauntlet** for structured learning.
+4. Continue in the [**Cloud Jam Gauntlet**](https://cloudunderground.dev/products/cloud-jam) for structured learning.
 
 > You can still use the **manual** Docker commands below. Commands, ports, credentials, and activation flow remain the same.
 
