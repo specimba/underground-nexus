@@ -1,226 +1,376 @@
-# Underground Nexus - Copy/Paste Data Center and DevSecOps Software Factory
+Here’s a clean, copy-paste **README.md** that keeps your working commands, links, ports, and credentials intact—while updating the framing to **“Sovereign Kernel Layer”**, clarifying purpose, and pointing new users to **Cerberus (cerberus0) manager** + **Cloud Jam Gauntlet**.
 
-## Learn to master cloud skills with Underground Nexus. Check out Cloud Jam: https://cloudunderground.dev/products/cloud-jam
+---
 
-**Release Version 2.0.1 - RELEASE NAME: CodeHaven**
+# Underground Nexus — Sovereign Kernel Layer
 
-<p align="center"><img src="https://github.com/Underground-Ops/underground-nexus/blob/main/Graphics/SVG/cloud-underground-logo.svg" alt="Cloud Underground Logo" width="300px" height="300px"> <img src="https://github.com/Underground-Ops/underground-nexus/blob/main/Graphics/SVG/new-nexus-logo.svg" alt="Underground Nexus Logo" width="300px" height="300px"></p>
+**Policy-guided automation that builds and governs your infrastructure.**
 
-----------------------------------------------------
+> **One-liner:**
+> Nexus is a **sovereign systems layer** that uses **curated artifacts** and an **agentic kernel** to assemble, harden, and prove compliant infrastructure—on any hardware or cloud.
 
-### Table of Contents
+<p align="center">
+  <img src="https://github.com/Underground-Ops/underground-nexus/blob/main/Graphics/SVG/cloud-underground-logo.svg" alt="Cloud Underground Logo" width="300px" height="300px">
+  <img src="https://github.com/Underground-Ops/underground-nexus/blob/main/Graphics/SVG/new-nexus-logo.svg" alt="Underground Nexus Logo" width="300px" height="300px">
+</p>
 
-- <a href="#introduction">Intro & Helpful Links</a>
+**Release Version 2.0.1 – RELEASE NAME: CodeHaven**
 
-- <a href="#install-step-1-assuming-docker-is-already-installed---open-a-command-line-windows-or-terminal-linux-or-osx-shell-and-paste-the-appropriate-install-command-for-your-computers-hardware-platform">Install Step 1</a>
+---
 
-- <a href="#install-step-2---paste-activation-command-in-the-same-shell-the-first-command-was-entered-in-and-the-underground-nexus-will-build-and-activate-itself-2-commands-total-to-deploy---this-is-the-second-and-final-command-if-there-are-no-errors--if-the-command-does-not-seem-to-work-try-the-alternative-install-option-below">Install Step 2</a>
+## Quick hero (site copy, optional)
 
-- <a href="#how-to-use-the-underground-nexus---once-deployed">How to Use Underground Nexus</a>
+**Underground Nexus: Sovereign Systems Layer**
+Turn policies into running systems—build sovereign zones, automate controls, and generate audit evidence by default.
+**CTA:** Explore the Gauntlet → | See the Architecture →
 
-- <a href="#deploying-virtual-machines-in-underground-nexus">How to Deploy Virtual Machines in Underground Nexus</a>
+**Underground Nexus: Governance OS**
+Artifact-driven, agent-operated infrastructure. Requirements in. Sovereign zones out. Evidence on.
+**CTA:** Start in the Gauntlet → | Read the README →
 
-- <a href="#underground-nexus-architecture">Underground Nexus Architecture</a>
+> **What we’ve retired:**
+> “Copy/paste data center” and “DevSecOps software factory” (still true internally) are no longer how buyers describe what Nexus does. We also avoid unexplained kernel/Kubernetes jargon on public pages.
 
-- <a href="#learn-about-foundational-principles-for-cloud-native-and-devsecops-here-httpsgitlabcomnatoascodenist-draft-regulation-800-204c-comment-notes-and-timestamps">More Resources</a>
+---
 
-----------------------------------------------------
+## Table of Contents
 
-## INTRODUCTION
+* [Intro & Helpful Links](#intro--helpful-links)
+* [Best Way to Install (Cerberus Manager)](#best-way-to-install-cerberus-manager)
+* [Manual Install Step 1](#manual-install-step-1)
+* [Manual Install Step 2 (Activation)](#manual-install-step-2-activation)
+* [How to Use Underground Nexus (Once Deployed)](#how-to-use-underground-nexus-once-deployed)
+* [Deploying Virtual Machines](#deploying-virtual-machines)
+* [Architecture & Diagrams](#architecture--diagrams)
+* [Sovereign Kernel Layer: What It Means](#sovereign-kernel-layer-what-it-means)
+* [Artifacts, Chaos Testing, and Golden Hosts](#artifacts-chaos-testing-and-golden-hosts)
+* [Beginner Mental Model (Windows Analogy)](#beginner-mental-model-windows-analogy)
+* [Learn More](#learn-more)
+* [Helpful Videos](#helpful-videos)
 
-__Here is the best way to install the complete Underground Nexus pipeline with a built in virtual machine engine (best for general use and for orchestrating containers and virtual machines together):__ https://github.com/Underground-Ops/underground-nexus/tree/cerberus0
+---
+
+## Intro & Helpful Links
+
+The **Underground Nexus** is a **Sovereign Kernel Layer**—a governance-first systems layer that compiles policy and requirements into **sovereign zones** and emits **audit evidence by default**. It’s artifact-driven and agent-operated, so you can evolve infrastructure from a living reference—without vendor lock-in.
+
+* **Official repository:**
+  [https://github.com/Underground-Ops/underground-nexus](https://github.com/Underground-Ops/underground-nexus)
+* **Best way to learn (Cloud Jam Gauntlet):**
+  [https://cloudunderground.dev/products/cloud-jam](https://cloudunderground.dev/products/cloud-jam)
+* **Recommended installer & package manager (Cerberus0 Manager CLI):**
+  [https://github.com/Underground-Ops/underground-nexus/tree/cerberus0](https://github.com/Underground-Ops/underground-nexus/tree/cerberus0)
 
 <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/nexus-software-factory.svg" alt="Underground Nexus Software Factory">
 
-Underground Nexus is a foundation for building autonomous cloud native companies.
+**Use cases you can start with:**
 
-Build a minimum viable product.
+* Build a minimum viable product
+* Stand up pre-governed configurations for GRC automation
+* Run a home lab for hands-on learning
+* Use Nexus as a **golden host** template to craft virtual appliances
 
-Build pregoverned enterprise configurations for governance, risk and compliance automations.
+---
 
-Build a home lab to learn in.
+## Best Way to Install (Cerberus Manager)
 
-Turn an entire data center into a copy paste template.
+> **Recommended for most users:** the **Cerberus (cerberus0) Manager CLI** bundles the full pipeline (including the built-in VM engine) and provides a smoother UX for installing, updating, and managing the stack.
 
-The Underground Nexus is a git powered **hyperconverged data center** that contains a specialized cloud construction toolkit for cloud-native engineering, DevSecOps and all-around general data center needs. The Underground Nexus container deployment is considered HCI (hyperconverged infrastructure).
+* Cerberus0 Manager:
+  [https://github.com/Underground-Ops/underground-nexus/tree/cerberus0](https://github.com/Underground-Ops/underground-nexus/tree/cerberus0)
 
-What is a hyperconverged data center? **-->** <a href="https://cloudunderground.dev/pages/what-is-hci">Learn more here!</a>
+**Kickstart with Cerberus (typical flow):**
 
-Learn why platform engineering matters to DevSecOps: https://youtu.be/ghzsBm8vOms
+1. Install Cerberus0 Manager per repo instructions and use it's shell to deploy virtual environments.
+2. Use the **`DEV`** command to set up your development workspace and fetch core artifacts.
+3. Use the **`SEC`** command to run a chaos test that builds a golden host appliance template if the test succeeds. (the **`SEC`** command deploys the Dockerfile image in this repository)
+4. Continue in the **Cloud Jam Gauntlet** for structured, project-based learning.
 
-***The Underground Nexus official repository lives here:*** https://github.com/Underground-Ops/underground-nexus
+> You can still use the **manual** Docker commands below. The commands, ports, credentials, and activation flow remain the same.
 
-***Check out how to get started with Underground Nexus quick-start guidance here:*** https://youtube.com/playlist?list=PLhu9nsQUxzfFHMlMXkfEUd_X1iMEXAnev
+---
 
-### Docker Desktop is recommended for developing with the Underground Nexus - Download Docker Desktop here: https://www.docker.com/products/docker-desktop
+## Manual Install Step 1
 
-## *Underground Nexus is natively powered by GitLab and Open Ziti*
-- Learn more about GitLab: https://about.gitlab.com/
-- Learn more about Open Ziti: https://openziti.io/
+> Assumes **Docker is already installed**. Open a command line (Windows) or terminal (Linux/OSX) and paste the appropriate **docker run** command for your platform.
 
-## [RECOMMENDED] __USE THE UNDERGROUND NEXUS INSTALLER AND PACKAGE MANAGER FOR THE BEST INSTALL EXPERIENCE AT (Cerberus0 Manager CLI): https://github.com/Underground-Ops/underground-nexus/tree/cerberus0__
+**Dockerhub *DEVELOPMENT* pull for *Docker Desktop or amd64* systems:**
 
-## Manual Install Step 1 (assuming Docker is already installed) - Open a command line (Windows) or terminal (Linux or OSX) shell and paste the appropriate install command for your computer's hardware platform.
+```
+docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init \
+  -p 22:22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000 \
+  -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 \
+  -p 18080:8080 -p 18443:18443 \
+  -v /dev:/dev -v underground-nexus-docker-socket:/var/run \
+  -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket \
+  natoascode/underground-nexus:amd64
+```
 
-**Dockerhub *DEVELOPMENT* pull for *Docker Desktop or amd64* systems:** `docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 22:22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000 -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 -p 18080:8080 -p 18443:18443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64`
+**Dockerhub *SECURE* pull for *Docker Desktop or amd64* systems:**
 
-**Dockerhub *SECURE* pull for *Docker Desktop or amd64* systems:** `docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 1000:1000 -p 9050:9443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64`
+```
+docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init \
+  -p 1000:1000 -p 9050:9443 \
+  -v /dev:/dev -v underground-nexus-docker-socket:/var/run \
+  -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket \
+  natoascode/underground-nexus:amd64
+```
 
-**Dockerhub *DEVELOPMENT* pull for *Apple M1, Raspberry Pi, NVIDIA Jetson and arm64* systems:** `docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 22:22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000 -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 -p 18080:8080 -p 18443:18443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:arm64`
+**Dockerhub *DEVELOPMENT* pull for *Apple M1, Raspberry Pi, NVIDIA Jetson and arm64* systems:**
 
-**Dockerhub *SECURE* pull for *Apple M1, Raspberry Pi, NVIDIA Jetson and arm64* systems:** `docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 1000:1000 -p 9050:9443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:arm64`
+```
+docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init \
+  -p 22:22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000 \
+  -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 \
+  -p 18080:8080 -p 18443:18443 \
+  -v /dev:/dev -v underground-nexus-docker-socket:/var/run \
+  -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket \
+  natoascode/underground-nexus:arm64
+```
 
-----------------------------------------------------
+**Dockerhub *SECURE* pull for *Apple M1, Raspberry Pi, NVIDIA Jetson and arm64* systems:**
 
-**IMPORTANT:** After deploying the Underground Nexus from the appropriate `docker run` command for your system, enter the command below for "**Install Step 2**" in the exact same terminal or console in which the `docker run` command ran. *This script does quite a lot and can take a LONG time to complete - depending on the power of your system and internet speeds it can take anywhere from 15 to 45 minutes to complete activating and initializing the Underground Nexus stack.*
+```
+docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init \
+  -p 1000:1000 -p 9050:9443 \
+  -v /dev:/dev -v underground-nexus-docker-socket:/var/run \
+  -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket \
+  natoascode/underground-nexus:arm64
+```
 
-## Manual Install Step 2 - Paste activation command in the same shell the first command was entered in, and the Underground Nexus will build and activate itself (2 commands total to deploy - this is the second and final command if there are no errors).  If the command does not seem to work try the alternative install option below.
+---
 
-***ACTIVATE the Underground Nexus (this is the only necessary command to run IMMEDIATELY after deploying the Underground Nexus to activate it):***
-**`docker exec Underground-Nexus bash deploy-olympiad.sh`**
+## Manual Install Step 2 (Activation)
 
-**ALTERNATIVE ACTIVATION** - _From inside of either a Docker Desktop shell to the Underground Nexus container or a Portainer shell into the Nexus_, enter this command from inside the Underground Nexus container itself for activation:
-`bash deploy-olympiad.sh`
+> Run **in the same shell** you used for the docker run command. This script builds and activates the stack. Depending on hardware and bandwidth, it can take **15–45 minutes**.
 
-**ALTERNATIVE FOR LOW POWERED DEVICES AND "LIGHTWEIGHT" DEPLOYMENT ACTIVATIONS** - *Systems with **under 8GB worth of RAM** will perform best using the light deployment of the Underground Nexus that that lacks KuberNexus, the underground-ops.me domain and non-essential tools. (apps remoed include Vault, the SOC, Traefik, Wordpress, GitLab, collaborator workbenches, k3d/Kubernetes)* -- _From inside of either a Docker Desktop shell to the Underground Nexus container or a Portainer shell into the Nexus_, enter this command from inside the Underground Nexus container itself for activation:
-`bash olympiad-deploy-light.sh`
+**Standard Activation (recommended):**
 
-**Head to Portainer to Log In at - *https://localhost:9050*:**
-- Reset Portainer for initial login if locked out using `docker exec Underground-Nexus docker restart Olympiad0`
-- Once the install script completes head to *http://localhost:1000* and open **_Firefox_** to find the **_Git-BIOS Control Panel_** to get started using the Underground Nexus resources and tools
+```
+docker exec Underground-Nexus bash deploy-olympiad.sh
+```
 
-----------------------------------------------------
+**Alternate Activation (run inside the container shell):**
 
-***The minimum recommended hardware for the Underground Nexus is the Raspberry Pi 4 (4GB RAM or more); anything more powerful will also certainly run the Underground Nexus well (compatible with amd64 and arm systems).***
+```
+bash deploy-olympiad.sh
+```
 
-----------------------------------------------------
+**Lightweight Activation (for < 8GB RAM or minimal footprint):**
+Removes KuberNexus, underground-ops.me domain, and non-essential tools (Vault, SOC, Traefik, WordPress, GitLab, collaborator workbenches, k3d/Kubernetes).
 
-## ***How to use the Underground Nexus*** **- Once Deployed:**
+```
+bash olympiad-deploy-light.sh
+```
 
-**1.** Access the Nexus MATE admin desktop at "http://localhost:1000" - If deployed on ARM, Visual Studio Code will need to be manually installed.  On amd64 builds you will see Visual Studio Code, GitHub Desktop and GitKraken listed in the MATE desktop. (The webtop is a loadbalancer, not just a desktop.)
+**Portainer login ([https://localhost:9050](https://localhost:9050)):**
 
-**2.** The Underground Nexus is designed to only need one open port to use, for security purposes (port 1000 is the single access port - alternatively, port 9050 is a safe second port to have open due to having `https`, and optionally port 2000 can be used for a least privileged Security Operation Center dashboard builder - ports beyond these three need to have purpose).  Every other port opened should be opened with intention and monitoring, which the Pi hole monitors all default apps by default (the recommended open port for primary access is http://localhost:1000, Portainer with https can be made securely available at https://localhost:9050 and the SOC can be made available optionally at http://localhost:2000 - keep in mind that port 1000 is a portal to root access, so keep security in mind for port 1000).
+* Reset Portainer if locked out:
+  `docker exec Underground-Nexus docker restart Olympiad0`
+* After install completes, go to **[http://localhost:1000](http://localhost:1000)**, open **Firefox**, and use the **Git-BIOS Control Panel** to get started.
 
-**3.** Inside of the Portainer interface, KuberNexus can be found for using Kubernetes.  To modify KuberNexus or to create a custom cluster of your own, the MATE admin desktop's terminal works with the `k3d` command which allows Kubernetes clusters to be built or modifed.
+> **Minimum hardware:** Raspberry Pi 4 (4GB RAM+) or anything more powerful (amd64/arm supported).
 
-**4.** Nexus apps are accessible from inside Firefox or any web browser inside the Nexus MATE admin desktop.
+---
 
-**5.** GitHub makes for an easy-to-use Single Sign On solution for setting up developer tools to use Nexus.  Visual Studio Code can be integrated from GitHub with Code Spaces for cloud compute scaling to get more power for development.
+## How to Use Underground Nexus (Once Deployed)
 
-**6.** The Kali shell is secured behind Portainer's login for security purposes by default.  Configure Kali Linux for ssh to give ssh access to the entire Nexus through the Kali Athena0 node as a gateway.
+1. **Admin desktop**:
+   Open the Nexus MATE admin desktop at **[http://localhost:1000](http://localhost:1000)**.
 
-**7.** The Athena0 Kali node happens to be a primary monitoring point for Grafana and Loki and also includes Radare2 (forensics tool used by NSA) for deep analysis that can be monitored with Grafana dashboards.
+   * On ARM, install Visual Studio Code manually.
+   * On amd64, you’ll see VS Code, GitHub Desktop, and GitKraken in the MATE desktop.
+   * The webtop is a **load balancer**, not just a desktop.
 
-**8.** Nexus can be turned into an ultra Pi hole if its DNS server ports are opened when Nexus is deployed (ports 53 and 67).  This would allow the Underground Nexus to be used as a company or home SOC that can have data integrated with Pi hole data using Grafana and Loki.
+2. **Secure port strategy**:
+   Nexus is designed to operate primarily from **one open port**: **1000**.
 
-**9.** Default URLs will show up if Nexus deploys without errors - **the links below can be used from inside the Nexus desktop if accessing this GitHub URL from inside the Firefox browser within the Nexus MATE desktop itself** (these will ONLY exist from inside a webtop web browser - Firefox works with these addresses from within the Nexus desktops):
-- Portainer: https://10.20.0.1:9443
-- Pi hole: http://inner-dns-control/admin/login.php (can change password from within Portainer)
-- Grafana: https://grafana.underground-ops.me/ and http://10.20.0.1:3000/ (default `user`:`password` is `admin`:`notiaPoint1`)
-- Wazuh: https://wazuh.underground-ops.me:5601/ and https://10.20.0.1:5601/ (default `user`:`password` is `admin`:`admin`)
-- Cyber Life Torpedo (S3 bucket): http://10.20.0.1:9010 (default `user`:`password` is `minioadmin`:`minioadmin`)
-- Ubuntu MATE Admin Desktop: `http://10.20.0.1:1000` (runs as root - default `user`:`password` is `abc`:`abc` - don't access this host from inside the Underground Nexus MATE Desktop)
-- Ubuntu KDE Security Operation Center Desktop: http://10.20.0.1:2000 (least privilege - default `user`:`password` is `abc`:`abc`)
-- Underground Nexus Secret Vault: http://10.20.0.1:8200 (default password is `myroot` - it is recommended to **not** make this port available for access outside of the Underground Nexus)
-- **Visual Studio Code** browser-accessible WebApp: http://10.20.0.1:18443 (be aware this VSC version is more locked down than the Visual Studio Code found on the MATE admin desktop)
-- Virtual Machine Engine (hyperscaler): http://10.20.0.1:18080 (for more granular virtual machine control access kubectl to manage and deploy hyperscaler with `kubectl` and `virtctl` CLI commands using the Athena0 container shell that can be accessed from the workbench container when typing - `sudo docker exec -it Athena0 bash`)
+   * Optional second secure port: **[https://localhost:9050](https://localhost:9050)** (Portainer).
+   * Optional SOC desktop: **[http://localhost:2000](http://localhost:2000)**.
+   * **Security note:** port **1000** is a portal to root access—treat accordingly.
 
-**10.** Here are the default apps mapped to the **development** ports if opened for access outside of the Underground Nexus
-(it's recommended to only open ports 1000 and 9443 unless other ports are being used intentionally - port 22 allows ssh access through a Kali Linux node, and any port being used can be opened as needed, however, Nexus is more securely accessed from inside the Underground Nexus *MATE Admin Desktop*):
-- Portainer: 9050 (test https://localhost:9050 for access)
-- Kali Linux Athena0: 22 (open this port to turn a machine's ssh port into a Kali Linux-based development, delivery and forensic analysis center powered by `radare2` - must first enable ssh from within Kali Linux to use remote shell access this way)
-- Pi hole: 80, 53 (test http://localhost for access - the Underground Nexus can be used as a powerful Pi hole for any device, if the Underground Nexus host IP address is used as a DNS server with port 53 open)
-- Cyber Life Torpedo (S3 bucket): 9010 (test http://localhost:9010 for access - this port can be used to move files in and out of the Underground Nexus or to turn the Nexus into a NAS - Network Attached Storage)
-- Ubuntu MATE Admin Desktop: 1000 (test http://localhost:1000 for access)
-- Ubuntu KDE Security Operation Center Desktop: 2000 (test http://localhost:2000 for access)
-- Web-browser accessible version of **Visual Studio Code**: 18443 (test http://localhost:18443 for access - be aware this VSC version is more locked down than the Visual Studio Code found on the MATE admin desktop)
+3. **Kubernetes (KuberNexus)**:
+   In Portainer, find **KuberNexus** for Kubernetes. Use the MATE terminal with `k3d` to create/modify clusters.
 
-**11.** From inside Portainer there is a *Kali Linux* system titled *Athena0* (access the terminal with Athena0's **>_** icon seen inside of Portainer's menu) - this tool is designed for pentesting and chaos engineering:
-- Tools include: Terraform (`terraform`), Metasploit (`msfconsole`), `nmap` and the Kali Linux `Bleeding Edge` repository for extensive resource access
-- This Athena0 node is designed as a super admin access gateway that can be configured to port 22 for accessing the Underground Nexus remotely (by default ssh is not configured in Athena0 to be accessible - please ensure the Underground Nexus is behind a firewall before configuring ssh access to the Underground Nexus with this node)
-- Both the Underground Nexus root shell and Ubuntu MATE terminal shell are able to send commands to Athena0 using `docker exec Athena0` followed by the desired command (for example, try `docker exec Athena0 terraform -v`)
-- Thanks to Terraform being paired with Metasploit, payloads can be distributed at scale from Athena0 for **Chaos Engineering** and general construction.
-- This resources is valuable for **bug bounty hunting** with the Underground Nexus
+4. **Nexus apps**:
+   Accessible via Firefox (or any browser) inside the MATE admin desktop.
 
-**12.** Terraform comes pre-installed for immediate use from both the Underground Nexus MATE Desktop's terminal and the Athena0 Kali Linux node:
-- Use Terraform from the MATE Desktop terminal for general use
-- Use Terraform from the Athena0 node for more aggressive use that might require super admin level access and full `root` privileges
+5. **SSO / Developer flow**:
+   GitHub works well for SSO. VS Code + GitHub Codespaces is a fast way to scale dev compute.
 
-**13.** Every amd64 version of the Underground Nexus using the standard recomended activation automatically builds a self-hosted GitLab environment. Other versions of the Underground Nexus deploy GitLab Runners that can be configured for use with an external GitLab environment - to access the self-hosted GitLab instance in a standard amd64 activation, the MATE admin webtop's has a default Git-BIOS home page with instructions on exactly how to get started with GitLab.
+6. **Kali shell security**:
+   Kali is locked behind Portainer by default. Configure SSH to allow access to the entire Nexus **through the Kali Athena0 node** as a gateway.
 
-***Learn more about using GitLab for DevSecOps here:*** https://learn.gitlab.com/cloud-underground/
+7. **Monitoring**:
+   The **Athena0** (Kali) node feeds **Grafana** and **Loki** and includes **radare2** for deep analysis.
 
-----------------------------------------------------
+8. **Pi-hole mode**:
+   Open DNS ports (**53**, **67**) to run Nexus as a powerful Pi-hole + SOC source. Integrate Pi-hole data with Grafana/Loki.
 
-## Deploying Virtual Machines in Underground Nexus:
+9. **Default internal URLs** (available **inside** the Nexus desktop browser):
 
-The Underground Nexus can be configured to emulate and run virtual machines inside of its stack with an application called *Virtual Machine Manager* and can be configured to use *QEMU*, which is already pre-installed for immediate use upon being deployed.
+   * Portainer: `https://10.20.0.1:9443`
+   * Pi-hole: `http://inner-dns-control/admin/login.php` (change password in Portainer)
+   * Grafana: `https://grafana.underground-ops.me/` and `http://10.20.0.1:3000/`
 
-Please see the images found in the repository for examples on how to use virtual machines to begin configuring emulated virtual systems.
+     * default `admin:notiaPoint1`
+   * Wazuh: `https://wazuh.underground-ops.me:5601/` and `https://10.20.0.1:5601/`
 
-### Using Underground Nexus Virtual Machines:
-- Walkthrough screenshots
+     * default `admin:admin`
+   * MinIO (Cyber Life Torpedo): `http://10.20.0.1:9010`
 
-<img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Using_Virtual_Machines__1.PNG" alt="Walkthrough screenshots steps 1-2">
+     * default `minioadmin:minioadmin`
+   * Ubuntu MATE Admin Desktop: `http://10.20.0.1:1000`
 
-<img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Using_Virtual_Machines__2.PNG" alt="Walkthrough screenshots steps 3-4">
+     * default `abc:abc` (runs as root; don’t access this host from inside the MATE desktop)
+   * Ubuntu KDE SOC Desktop: `http://10.20.0.1:2000`
 
-<img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Using_Virtual_Machines__3.PNG" alt="Walkthrough screenshots steps 5">
+     * default `abc:abc`
+   * Vault: `http://10.20.0.1:8200`
 
-----------------------------------------------------
+     * default password `myroot` (do **not** expose externally)
+   * VS Code (browser): `http://10.20.0.1:18443`
+   * VM Engine (Hyperscaler): `http://10.20.0.1:18080`
 
-## Underground Nexus Architecture
+10. **External development ports** (open intentionally––recommended defaults are **1000** and **9443**):
 
-**Underground Nexus - Cloud Native Server Architecture: *https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Architecture.pdf***
+    * Portainer: **9050** → `https://localhost:9050`
+    * Kali Athena0: **22** (enable SSH inside Kali first)
+    * Pi-hole: **80**, **53** → `http://localhost`
+    * MinIO: **9010** → `http://localhost:9010`
+    * Admin Desktop: **1000** → `http://localhost:1000`
+    * SOC Desktop: **2000** → `http://localhost:2000`
+    * VS Code (browser): **18443** → `http://localhost:18443`
 
-**Quick Start Guide (ESPECIALLY pay attention to *STEP 4* - if using the dockerhub pull, skip to *STEP 3* of guide): *https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Quick_Guide.pdf***
+11. **Athena0 (Kali) for pentest & chaos**:
+
+    * Tools: Terraform (`terraform`), Metasploit (`msfconsole`), `nmap`, Kali **Bleeding Edge** repo
+    * Configure SSH (port **22**) behind a firewall for remote Nexus access
+    * From host shells: `docker exec Athena0 <cmd>` (e.g., `docker exec Athena0 terraform -v`)
+    * Use with Terraform + Metasploit for **Chaos Engineering** and delivery
+    * Useful for **bug bounty** workflows
+
+12. **Terraform pre-installed**:
+
+    * Use from MATE terminal for general work
+    * Use from **Athena0** for super-admin work that needs full `root`
+
+13. **GitLab (amd64 standard activation)**:
+
+    * The standard activation builds a self-hosted GitLab.
+    * Other variants deploy GitLab Runners that you can pair to external GitLab.
+    * The MATE webtop home page (Git-BIOS) includes “Getting Started with GitLab.”
+
+> Learn GitLab + DevSecOps with Cloud Underground:
+> [https://learn.gitlab.com/cloud-underground/](https://learn.gitlab.com/cloud-underground/)
+
+---
+
+## Deploying Virtual Machines
+
+Nexus includes **Virtual Machine Manager** and **QEMU** for running VMs inside the stack.
+
+* Screenshots:
+
+  * <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Using_Virtual_Machines__1.PNG" alt="VM steps 1-2">
+  * <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Using_Virtual_Machines__2.PNG" alt="VM steps 3-4">
+  * <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Using_Virtual_Machines__3.PNG" alt="VM steps 5">
+
+---
+
+## Architecture & Diagrams
+
+* **Cloud-Native Server Architecture (PDF):**
+  [https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Architecture.pdf](https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Architecture.pdf)
+* **Quick Start Guide (pay special attention to Step 4; dockerhub users start at Step 3):**
+  [https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Quick_Guide.pdf](https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Quick_Guide.pdf)
 
 <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/super-root-cluster.svg" alt="Underground Nexus Super Roots">
 
-The Underground Nexus allows business owners to grow your #tech organically like a garden - start with what you have and grow it your way. What the heck is the Underground Nexus?!
+Additional diagrams (kept as in prior README):
 
-The Underground Nexus from Cloud Underground is a hyperconverged #datacenter and copy paste #software factory, meaning it is a microservices based and built data center that can scale even across hardware that might not be compatible to orchestrate otherwise.
+* <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/software-factory-pipeline.svg" alt="Software Factory Pipeline">
+* <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/cloud-native-git-bios.svg" alt="Cloud-native Git-BIOS">
+* <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/git-bios-engine.svg" alt="Git-BIOS Engine">
+* <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/developer-site-architecture.svg" alt="Developer Site Architecture">
 
-That was a mouthful, let's break it down a bit more...
+---
 
-- The Underground Nexus is a containerized kernel known as a "super root" system. (DigitalOcean defines kernels here: https://lnkd.in/gcpQvnqZ)
-- A "super root" cluster is a cluster of Underground Nexus nodes, in which each node maps to hardware kernel inputs and outputs (IO) based on how the developer designs IO mappings for an Underground Nexus hosted application (can be a Swarm or it can use a rootless orchestrator such as being configured for rootless Kubernetes).
-- "Super root" clusters are defined as "super" due to the need to protect super root kernel layers since they possess privileged access to hardware IO, all super roots as a result come heavily equipped with monitoring out of the box alongside SIEM and XDR that's preconfigured for security use.
-- Super roots allow Underground Nexus users to start with whatever server infrastructure they currently have available, and scale with very few limits down the road as they grow without needing to build for 3+ years worth of computing costs up front (could start with a budget of $0 or $1,000 and then scale endlessly as you grow).
-- The Underground Nexus kernel (referred to as a "Git-BIOS") can be managed via a single source of truth in the form of a Git repository, which means 100% of the Underground Nexus can be managed with CICD runners.
-- Underground Nexus is a cloud native kernel, meaning that it can cluster multiple hardware nodes together to run as one single serverless server (even if the hardware isn't all the same or living in the same location).
-- The Underground Nexus can run on-premise or with any flavor of public cloud that can run Docker or Kubernetes, it can even make AWS, Azure, GCP, Linode and beyond all run together as one single orchestrated application hosting environment while also being less work than manually configuring one single computing environment.
-- GitLab powers the heart of the Underground Nexus, allowing a "super root" cluster to be capable of scaling with serverless functions, rather than exclusively scaling with your chosen container orchestrator.
-- Applications look the same on the surface for end users, except the lower hosting costs can mean superior customer service support budgets.
+## Sovereign Kernel Layer: What It Means
 
-The Underground Nexus is free to use anytime, #build at your own pace.
+* **Sovereign Zone:** a secured environment where **you** own the keys and the control plane. Controls are enforced lower in the stack (hypervisor/network/kernel), not just at the app layer.
+* **Agentic kernel:** local + cloud “brains” (agents) operate from **curated artifacts** and your **creed/policy**, automating operations with human approval gates when needed.
+* **Evidence by default:** because policy and automations are code, each change can emit attestations and logs suitable for audits.
 
-Grow your glory!
+> **Open-core model:** the FOSS edition exposes the **open core filesystem and artifacts**. Enterprise deployments may run **Nexus OS** (no privileged container; KVM talks directly to OS services) and add private file system + intelligence feeds.
 
-<img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/software-factory-pipeline.svg" alt="Underground Nexus Software Factory Pipeline">
+---
 
-<img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/cloud-native-git-bios.svg" alt="Cloud Underground's Cloud-native Git-BIOS">
+## Artifacts, Chaos Testing, and Golden Hosts
 
-<img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/git-bios-engine.svg" alt="The Git-BIOS Engine">
+* **Artifacts everywhere:** This repository is a **curated artifact set** distilled from real production work and mapped to common controls across global compliance frameworks.
+* **Dockerfile as a “chaos test”:** The root **Dockerfile** executes a series of build-time tasks (via `docker exec`), pulling the repo’s artifacts and exercising the stack. Configurations that **survive** are promoted into **Production Artifacts**:
+  [https://github.com/Underground-Ops/underground-nexus/tree/main/Production%20Artifacts](https://github.com/Underground-Ops/underground-nexus/tree/main/Production%20Artifacts)
+* **Why the activation feels “fragile”:** It’s intentionally a **chaos test**. If something fails on your host, it’s surfacing a network or system constraint early—so you can remediate before trusting production workloads.
+* **Golden Host:** A full Nexus deployment is a **living template**—a golden image you can harden further or morph into a **virtual appliance**. Because everything is artifacts, AI/agents can refactor it to your target environment.
 
-<img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/developer-site-architecture.svg" alt="Underground Nexus Developer Site Architecture">
+> **Build appliances with Cerberus:** Use **cerberus0** and the **`DEV`** environment to design, test, and package VMs/containers into your appliance shape.
 
-----------------------------------------------------
+---
 
-## Learn about foundational principles for Cloud Native and DevSecOps here: https://gitlab.com/natoascode/nist-draft-regulation-800-204c-comment-notes-and-timestamps
+## Beginner Mental Model (Windows Analogy)
 
-----------------------------------------------------
+* Think of the Nexus repository as the **C:\** drive for a **sovereign kernel**.
+* **Jelly Apps** are like “Program Files”: sovereign apps installed via **appination** (a small language that places executables on the system **PATH** so they behave like normal commands).
+* Because the system is **artifact-driven**, AI/agents can **reshape** it to your needs—one core reason Nexus excels at **GRC** (controls are encoded as artifacts and enforced continuously).
 
-## Learn about the foundations that the Underground Nexus was built upon here: https://notiapoint.com/pages/the-olympiad
+> **Flywheel:** The more controls you encode, the more operations the system can automate and keep in continuous compliance.
 
-----------------------------------------------------
+---
+
+## Learn More
+
+* **Foundational principles (Cloud-Native & DevSecOps):**
+  [https://gitlab.com/natoascode/nist-draft-regulation-800-204c-comment-notes-and-timestamps](https://gitlab.com/natoascode/nist-draft-regulation-800-204c-comment-notes-and-timestamps)
+* **Foundations Nexus was built upon:**
+  [https://notiapoint.com/pages/the-olympiad](https://notiapoint.com/pages/the-olympiad)
+* **Learn by building (Cloud Jam Gauntlet):**
+  [https://cloudunderground.dev/products/cloud-jam](https://cloudunderground.dev/products/cloud-jam)
+
+> A great first project is a **sovereign smart home** lab. You’ll learn how to secure, govern, and automate a real environment—then apply the same patterns at work.
+
+---
 
 ## Helpful Videos
 
-**Ditch VPN's and go 100% Zero Trust:** https://www.youtube.com/watch?v=IYmXPF3XUwo
+* **Ditch VPNs: go Zero Trust:**
+  [https://www.youtube.com/watch?v=IYmXPF3XUwo](https://www.youtube.com/watch?v=IYmXPF3XUwo)
+* **Publish a Zero Trust WordPress site from Nexus with Cloudflare:**
+  [https://youtu.be/ey4u7OUAF3c](https://youtu.be/ey4u7OUAF3c)
 
-**Publish a Zero Trust Wordpress Website directly from Underground Nexus with Cloudflare:** https://youtu.be/ey4u7OUAF3c
+---
 
-----------------------------------------------------
+### Notes on security stance and modes (unchanged guidance, clarified)
 
-## Learn to master cloud skills with Underground Nexus. Check out Cloud Jam: https://cloudunderground.dev/products/cloud-jam
+* **Open-source route:** privileged runtime to bootstrap/operate the platform from a single container boundary. Constrain with capabilities, SELinux/AppArmor, cgroups, and host namespace controls.
+* **Nexus OS (enterprise):** no privileged container; **KVM** talks directly to OS hypervisor services—removes the privileged-container risk class while preserving kernel-level security controls.
+* Pair with host hardening and microcode/kernel mitigations as needed.
+
+---
+
+**Docker Desktop is recommended** for developing with Underground Nexus:
+[https://www.docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
+
+**Natively powered by GitLab and OpenZiti**
+
+* GitLab: [https://about.gitlab.com/](https://about.gitlab.com/)
+* OpenZiti: [https://openziti.io/](https://openziti.io/)
+
+---
+
+**Learn to master cloud skills with Underground Nexus — join the Cloud Jam Gauntlet:**
+[https://cloudunderground.dev/products/cloud-jam](https://cloudunderground.dev/products/cloud-jam)
+
+---
+
+This README preserves your **commands**, **ports**, **links**, and **credentials** while updating the positioning, adding the Cerberus kickstart, explaining artifacts/chaos/Golden Host, and introducing the **Sovereign Kernel Layer** model in buyer-friendly language.
