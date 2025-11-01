@@ -38,7 +38,7 @@ Artifact-driven, agent-operated infrastructure. Requirements in. Sovereign zones
 * [How to Use Underground Nexus (Once Deployed)](#how-to-use-underground-nexus-once-deployed)
 * [Deploying Virtual Machines](#deploying-virtual-machines)
 * [Architecture & Diagrams](#architecture--diagrams)
-* [Super Root — Sovereign Kernel (new)](#super-root—sovereign-kernel-new)
+* [Super Root | Sovereign Kernel](#super-root--sovereign-kernel)
 * [Sovereign Kernel Layer: What It Means](#sovereign-kernel-layer-what-it-means)
 * [Artifacts, Chaos Testing, and Golden Hosts](#artifacts-chaos-testing-and-golden-hosts)
 * [Beginner Mental Model (Windows Analogy)](#beginner-mental-model-windows-analogy)
@@ -283,7 +283,7 @@ Nexus includes **Virtual Machine Manager** and **QEMU** for running VMs inside t
 
 ---
 
-## Super Root — Sovereign Kernel (new)
+## Super Root | Sovereign Kernel
 
 This section replaces and modernizes the older "super root" content.
 
