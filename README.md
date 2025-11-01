@@ -1,7 +1,3 @@
-Here’s a clean, copy-paste **README.md** that keeps your working commands, links, ports, and credentials intact—while updating the framing to **“Sovereign Kernel Layer”**, clarifying purpose, and pointing new users to **Cerberus (cerberus0) manager** + **Cloud Jam Gauntlet**.
-
----
-
 # Underground Nexus — Sovereign Kernel Layer
 
 **Policy-guided automation that builds and governs your infrastructure.**
@@ -21,7 +17,7 @@ Here’s a clean, copy-paste **README.md** that keeps your working commands, lin
 ## Quick hero (site copy, optional)
 
 **Underground Nexus: Sovereign Systems Layer**
-Turn policies into running systems—build sovereign zones, automate controls, and generate audit evidence by default.
+Turn policies into running systems – build sovereign zones, automate controls, and generate audit evidence by default.
 **CTA:** Explore the Gauntlet → | See the Architecture →
 
 **Underground Nexus: Governance OS**
@@ -42,6 +38,7 @@ Artifact-driven, agent-operated infrastructure. Requirements in. Sovereign zones
 * [How to Use Underground Nexus (Once Deployed)](#how-to-use-underground-nexus-once-deployed)
 * [Deploying Virtual Machines](#deploying-virtual-machines)
 * [Architecture & Diagrams](#architecture--diagrams)
+* [Super Root — Sovereign Kernel (new)](#super-root—sovereign-kernel-new)
 * [Sovereign Kernel Layer: What It Means](#sovereign-kernel-layer-what-it-means)
 * [Artifacts, Chaos Testing, and Golden Hosts](#artifacts-chaos-testing-and-golden-hosts)
 * [Beginner Mental Model (Windows Analogy)](#beginner-mental-model-windows-analogy)
@@ -52,18 +49,15 @@ Artifact-driven, agent-operated infrastructure. Requirements in. Sovereign zones
 
 ## Intro & Helpful Links
 
-The **Underground Nexus** is a **Sovereign Kernel Layer**—a governance-first systems layer that compiles policy and requirements into **sovereign zones** and emits **audit evidence by default**. It’s artifact-driven and agent-operated, so you can evolve infrastructure from a living reference—without vendor lock-in.
+The **Underground Nexus** is a **Sovereign Kernel Layer** – a governance-first systems layer that compiles policy and requirements into **sovereign zones** and emits **audit evidence by default**. It’s artifact-driven and agent-operated, so you can evolve infrastructure from a living reference without vendor lock-in.
 
-* **Official repository:**
-  [https://github.com/Underground-Ops/underground-nexus](https://github.com/Underground-Ops/underground-nexus)
-* **Best way to learn (Cloud Jam Gauntlet):**
-  [https://cloudunderground.dev/products/cloud-jam](https://cloudunderground.dev/products/cloud-jam)
-* **Recommended installer & package manager (Cerberus0 Manager CLI):**
-  [https://github.com/Underground-Ops/underground-nexus/tree/cerberus0](https://github.com/Underground-Ops/underground-nexus/tree/cerberus0)
+* **Official repository:** [https://github.com/Underground-Ops/underground-nexus](https://github.com/Underground-Ops/underground-nexus)
+* **Best way to learn (Cloud Jam Gauntlet):** [https://cloudunderground.dev/products/cloud-jam](https://cloudunderground.dev/products/cloud-jam)
+* **Recommended installer & package manager (Cerberus0 Manager CLI):** [https://github.com/Underground-Ops/underground-nexus/tree/cerberus0](https://github.com/Underground-Ops/underground-nexus/tree/cerberus0)
 
 <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/nexus-software-factory.svg" alt="Underground Nexus Software Factory">
 
-**Use cases you can start with:**
+**Use cases you can start with**
 
 * Build a minimum viable product
 * Stand up pre-governed configurations for GRC automation
@@ -74,25 +68,24 @@ The **Underground Nexus** is a **Sovereign Kernel Layer**—a governance-first s
 
 ## Best Way to Install (Cerberus Manager)
 
-> **Recommended for most users:** the **Cerberus (cerberus0) Manager CLI** bundles the full pipeline (including the built-in VM engine) and provides a smoother UX for installing, updating, and managing the stack.
+**Recommended for most users:** the **Cerberus (cerberus0) Manager CLI** bundles the full pipeline and provides a smoother UX.
 
-* Cerberus0 Manager:
-  [https://github.com/Underground-Ops/underground-nexus/tree/cerberus0](https://github.com/Underground-Ops/underground-nexus/tree/cerberus0)
+* Cerberus0 Manager: [https://github.com/Underground-Ops/underground-nexus/tree/cerberus0](https://github.com/Underground-Ops/underground-nexus/tree/cerberus0)
 
-**Kickstart with Cerberus (typical flow):**
+**Kickstart with Cerberus (typical flow)**
 
-1. Install Cerberus0 Manager per repo instructions and use it's shell to deploy virtual environments.
+1. Install Cerberus0 Manager per repo instructions and use its shell to deploy virtual environments.
 2. Use the **`DEV`** command to set up your development workspace and fetch core artifacts.
 3. Use the **`SEC`** command to run a chaos test that builds a golden host appliance template if the test succeeds. (the **`SEC`** command deploys the Dockerfile image in this repository)
-4. Continue in the **Cloud Jam Gauntlet** for structured, project-based learning.
+4. Continue in the **Cloud Jam Gauntlet** for structured learning.
 
-> You can still use the **manual** Docker commands below. The commands, ports, credentials, and activation flow remain the same.
+> You can still use the **manual** Docker commands below. Commands, ports, credentials, and activation flow remain the same.
 
 ---
 
 ## Manual Install Step 1
 
-> Assumes **Docker is already installed**. Open a command line (Windows) or terminal (Linux/OSX) and paste the appropriate **docker run** command for your platform.
+> Assumes **Docker is already installed**. Open a command line and paste the appropriate `docker run` for your platform.
 
 **Dockerhub *DEVELOPMENT* pull for *Docker Desktop or amd64* systems:**
 
@@ -116,7 +109,7 @@ docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --ini
   natoascode/underground-nexus:amd64
 ```
 
-**Dockerhub *DEVELOPMENT* pull for *Apple M1, Raspberry Pi, NVIDIA Jetson and arm64* systems:**
+**Dockerhub *DEVELOPMENT* pull for *arm64* systems (examples include Apple M1, Raspberry Pi, NVIDIA Jetson, etc.):**
 
 ```
 docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init \
@@ -128,7 +121,7 @@ docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --ini
   natoascode/underground-nexus:arm64
 ```
 
-**Dockerhub *SECURE* pull for *Apple M1, Raspberry Pi, NVIDIA Jetson and arm64* systems:**
+**Dockerhub *SECURE* pull for *arm64* systems (examples include Apple M1, Raspberry Pi, NVIDIA Jetson, etc.):**
 
 ```
 docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init \
@@ -142,7 +135,7 @@ docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --ini
 
 ## Manual Install Step 2 (Activation)
 
-> Run **in the same shell** you used for the docker run command. This script builds and activates the stack. Depending on hardware and bandwidth, it can take **15–45 minutes**.
+> Run in the **same shell** used for docker run. Script builds and activates the stack. Expect **15–45 minutes** on average.
 
 **Standard Activation (recommended):**
 
@@ -150,13 +143,13 @@ docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --ini
 docker exec Underground-Nexus bash deploy-olympiad.sh
 ```
 
-**Alternate Activation (run inside the container shell):**
+**Alternate Activation (inside container shell):**
 
 ```
 bash deploy-olympiad.sh
 ```
 
-**Lightweight Activation (for < 8GB RAM or minimal footprint):**
+**Lightweight Activation (for < 8GB RAM):**
 Removes KuberNexus, underground-ops.me domain, and non-essential tools (Vault, SOC, Traefik, WordPress, GitLab, collaborator workbenches, k3d/Kubernetes).
 
 ```
@@ -282,12 +275,69 @@ Nexus includes **Virtual Machine Manager** and **QEMU** for running VMs inside t
 
 * **Cloud-Native Server Architecture (PDF):**
   [https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Architecture.pdf](https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Architecture.pdf)
+
 * **Quick Start Guide (pay special attention to Step 4; dockerhub users start at Step 3):**
   [https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Quick_Guide.pdf](https://github.com/Underground-Ops/underground-nexus/blob/main/Underground_Nexus_Quick_Guide.pdf)
 
 <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/super-root-cluster.svg" alt="Underground Nexus Super Roots">
 
-Additional diagrams (kept as in prior README):
+---
+
+## Super Root — Sovereign Kernel (new)
+
+This section replaces and modernizes the older "super root" content.
+
+### What is a Super Root
+
+A **Super Root** is the privileged sovereign-kernel control plane for an Underground Nexus deployment. It is the logical layer that:
+
+* bootstraps and governs the platform from the lowest reliable control points
+* owns platform policy and signed configuration artifacts
+* exposes guarded APIs for agentic automation and human gates
+* provides the root of trust you control – keys, attestations, and provenance
+
+The Super Root is not a single binary. It is a configuration of kernel-level controls, hypervisor boundaries, curated artifacts, and agent interfaces that together form a secure substrate for sovereign zones.
+
+### Super Root configuration — core components
+
+A Super Root configuration typically includes:
+
+* **KVM/QEMU** – hardware-assisted virtualization used to create strong VM isolation.
+* **Network primitives** – hardware offload and NIC partitioning such as SR-IOV for deterministic I/O.
+* **Kernel-level enforcement** – eBPF policies and host protections applied early in the packet path.
+* **Policy-as-artifact** – policy, runbooks, and playbooks stored as versioned artifacts (Git) and governed by CI/CD runners.
+* **Agent surface** – guarded APIs that agents use to observe, decide, and act with human approval gates.
+* **Firmware & BIOS governance** – managed firmware updates and attestations using signed flows and fwupd/LVFS where supported.
+* **Provenance tooling** – SLSA/in-toto-style attestations attached to builds, images, and changes.
+
+### How a Super Root creates a sovereign zone
+
+1. Anchor trust to keys you control. Sign configs, images, and firmware.
+2. Enforce controls at the kernel and NIC path – restrict device DMA, packet handling, and virtual function mapping.
+3. Use agentic automations to carry out policy-as-code – automatic actions require approval for high-risk changes.
+4. Produce attestations and audit bundles for every artifact, run, and change. Continuous evidence reduces audit burden.
+
+### Practical Super Root patterns (how we implement it in Nexus)
+
+* Keep privileged operations narrow – prefer KVM-hosted services rather than privileged containers for critical functions when possible.
+* When a privileged container is necessary for bootstrapping – constrain capabilities, use SELinux/AppArmor, limit cgroups and namespaces.
+* Use SR-IOV or PCIe passthrough for predictable hardware I/O for workloads that need real-time or high-throughput networking.
+* Deploy eBPF-based network policies for identity-aware filtering earlier than traditional iptables rules.
+* Attach SLSA/in-toto attestations to production artifacts and firmware update operations for provable provenance.
+
+### Super Root configuration with Cerberus
+
+* Cerberus0 automates the Super Root activation steps through the `DEV` and `SEC` commands.
+* Use `DEV` to design and test a Super Root configuration in a dev workspace.
+* Use `SEC` to exercise the stack as a chaos test and, on success, promote validated artifacts to the Production Artifacts folder.
+
+### Security and limitations
+
+* VM isolation is strong but not perfect. Pair with CPU microcode and kernel mitigations and practice patch hygiene.
+* Privileged bootstrap paths must be audited, constrained, and rotated regularly.
+* Treat firmware operations as high-risk workflows – require attestations and limited human approval.
+
+Additional architecture diagrams for software factory pipeline management:
 
 * <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/software-factory-pipeline.svg" alt="Software Factory Pipeline">
 * <img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/cloud-native-git-bios.svg" alt="Cloud-native Git-BIOS">
@@ -314,7 +364,7 @@ Additional diagrams (kept as in prior README):
 * **Why the activation feels “fragile”:** It’s intentionally a **chaos test**. If something fails on your host, it’s surfacing a network or system constraint early—so you can remediate before trusting production workloads.
 * **Golden Host:** A full Nexus deployment is a **living template**—a golden image you can harden further or morph into a **virtual appliance**. Because everything is artifacts, AI/agents can refactor it to your target environment.
 
-> **Build appliances with Cerberus:** Use **cerberus0** and the **`DEV`** environment to design, test, and package VMs/containers into your appliance shape.
+**Build appliances with Cerberus:** Use `DEV` to design and `SEC` to validate appliances.
 
 ---
 
@@ -330,12 +380,9 @@ Additional diagrams (kept as in prior README):
 
 ## Learn More
 
-* **Foundational principles (Cloud-Native & DevSecOps):**
-  [https://gitlab.com/natoascode/nist-draft-regulation-800-204c-comment-notes-and-timestamps](https://gitlab.com/natoascode/nist-draft-regulation-800-204c-comment-notes-and-timestamps)
-* **Foundations Nexus was built upon:**
-  [https://notiapoint.com/pages/the-olympiad](https://notiapoint.com/pages/the-olympiad)
-* **Learn by building (Cloud Jam Gauntlet):**
-  [https://cloudunderground.dev/products/cloud-jam](https://cloudunderground.dev/products/cloud-jam)
+* **Foundational principles (Cloud-Native & DevSecOps):** [https://gitlab.com/natoascode/nist-draft-regulation-800-204c-comment-notes-and-timestamps](https://gitlab.com/natoascode/nist-draft-regulation-800-204c-comment-notes-and-timestamps)
+* **Foundations Nexus was built upon:** [https://notiapoint.com/pages/the-olympiad](https://notiapoint.com/pages/the-olympiad)
+* **Start with Cloud Jam Gauntlet:** [https://cloudunderground.dev/products/cloud-jam](https://cloudunderground.dev/products/cloud-jam)
 
 > A great first project is a **sovereign smart home** lab. You’ll learn how to secure, govern, and automate a real environment—then apply the same patterns at work.
 
@@ -343,14 +390,12 @@ Additional diagrams (kept as in prior README):
 
 ## Helpful Videos
 
-* **Ditch VPNs: go Zero Trust:**
-  [https://www.youtube.com/watch?v=IYmXPF3XUwo](https://www.youtube.com/watch?v=IYmXPF3XUwo)
-* **Publish a Zero Trust WordPress site from Nexus with Cloudflare:**
-  [https://youtu.be/ey4u7OUAF3c](https://youtu.be/ey4u7OUAF3c)
+* **Ditch VPNs: go Zero Trust:** [https://www.youtube.com/watch?v=IYmXPF3XUwo](https://www.youtube.com/watch?v=IYmXPF3XUwo)
+* **Publish a Zero Trust WordPress site from Nexus with Cloudflare:** [https://youtu.be/ey4u7OUAF3c](https://youtu.be/ey4u7OUAF3c)
 
 ---
 
-### Notes on security stance and modes (unchanged guidance, clarified)
+### Notes on security stance and modes
 
 * **Open-source route:** privileged runtime to bootstrap/operate the platform from a single container boundary. Constrain with capabilities, SELinux/AppArmor, cgroups, and host namespace controls.
 * **Nexus OS (enterprise):** no privileged container; **KVM** talks directly to OS hypervisor services—removes the privileged-container risk class while preserving kernel-level security controls.
@@ -358,8 +403,7 @@ Additional diagrams (kept as in prior README):
 
 ---
 
-**Docker Desktop is recommended** for developing with Underground Nexus:
-[https://www.docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
+**Docker Desktop is recommended** for developing with Underground Nexus: [https://www.docker.com/products/docker-desktop](https://www.docker.com/products/docker-desktop)
 
 **Natively powered by GitLab and OpenZiti**
 
@@ -370,7 +414,3 @@ Additional diagrams (kept as in prior README):
 
 **Learn to master cloud skills with Underground Nexus — join the Cloud Jam Gauntlet:**
 [https://cloudunderground.dev/products/cloud-jam](https://cloudunderground.dev/products/cloud-jam)
-
----
-
-This README preserves your **commands**, **ports**, **links**, and **credentials** while updating the positioning, adding the Cerberus kickstart, explaining artifacts/chaos/Golden Host, and introducing the **Sovereign Kernel Layer** model in buyer-friendly language.
