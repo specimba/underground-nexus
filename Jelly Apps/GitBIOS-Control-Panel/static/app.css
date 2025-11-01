@@ -1,0 +1,33 @@
+.cp-dock {
+  position: fixed; top: 0; left: 0; width: 420px; height: 100vh;
+  background: rgba(12,12,20,0.95); backdrop-filter: blur(4px);
+  color: #fff; padding: 12px; box-shadow: 0 0 24px rgba(0,0,0,0.4);
+  z-index: 99999; overflow: hidden; display: flex; flex-direction: column; gap: 10px;
+  border-right: 1px solid rgba(255,255,255,0.1);
+  font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial;
+}
+.cp-header { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.cp-title { font-weight: 600; }
+.cp-actions { display: flex; gap: 6px; }
+.cp-btn { background:#5e17eb; color:white; border:none; padding:6px 10px; border-radius:8px; cursor:pointer; font-size: 12px; }
+.cp-row { display:flex; gap:8px; align-items:center; }
+.cp-row select { flex:1; padding:6px; }
+.cp-buttons { flex:1; overflow:auto; border:1px solid rgba(255,255,255,0.08); border-radius:10px; padding:8px; display:flex; flex-direction:column; gap:8px; background:rgba(255,255,255,0.02); }
+.cp-button-row { display:flex; gap:6px; align-items:center; }
+.cp-button { flex:1; min-height:40px; border-radius:10px; border:none; cursor:pointer; background:#ffffff10; color:#fff; text-align:left; padding:8px 10px; }
+.cp-ellipsis { width:34px; min-width:34px; height:40px; border-radius:10px; border:1px solid rgba(255,255,255,0.15); background:transparent; color:#fff; cursor:pointer; }
+.cp-badge { font-size:10px; margin-left:8px; background:#6934ff; color:#fff; padding:2px 6px; border-radius:999px; vertical-align:middle; }
+.cp-log { height:200px; display:flex; flex-direction:column; gap:6px; }
+.cp-log-header { font-size:12px; opacity:0.8; }
+.cp-log-pre { flex:1; overflow:auto; background:#0e002a; color:#d6c2ff; padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08); }
+.cp-fab { position:fixed; right:16px; bottom:16px; z-index:99999; background:#5e17eb; color:white; border:none; border-radius:50%; width:52px; height:52px; cursor:pointer; font-size:20px; box-shadow:0 10px 20px rgba(0,0,0,0.25); }
+.hidden { display:none !important; }
+
+/* Busy overlay */
+body.cp-busy::after {
+  content: 'Running...';
+  position: fixed; inset: 0; background: rgba(0,0,0,0.35);
+  color: #fff; display:flex; align-items:center; justify-content:center;
+  z-index: 100000;
+  font-weight:600; letter-spacing:0.5px;
+}
