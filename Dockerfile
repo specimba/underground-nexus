@@ -176,7 +176,7 @@ RUN echo "curl https://raw.githubusercontent.com/Underground-Ops/underground-nex
 RUN echo "wget https://raw.githubusercontent.com/Underground-Ops/underground-nexus/main/Production%20Artifacts/firefox-homepage.sh" >> deploy-olympiad.sh
 RUN echo "sh firefox-homepage.sh" >> deploy-olympiad.sh
 
-RUN echo "docker exec workbench bash /config/Desktop/nexus-bucket/terraform-workbench-install.sh && docker exec workbench terraform -v && docker exec workbench apt install terminator -y && docker exec workbench chown -R abc /config" >> deploy-olympiad.sh
+RUN echo "docker exec workbench bash /config/Desktop/nexus-bucket/terraform-workbench-install.sh && docker exec workbench terraform -v && docker exec workbench apt install terminator -y && docker exec workbench chown -R abc /config && docker exec workbench bash /config/Desktop/nexus-bucket/'Dagger CI'/Scripts/Maintenance/workbench-apt-update-repair.sh && docker exec workbench bash /config/Desktop/nexus-bucket/'Dagger CI'/Scripts/configure-desktop-menu.sh" >> deploy-olympiad.sh
 
 RUN echo "docker exec Athena0 curl https://raw.githubusercontent.com/Underground-Ops/underground-nexus/main/underground-nexus-update.sh | bash" >> deploy-olympiad.sh
 
