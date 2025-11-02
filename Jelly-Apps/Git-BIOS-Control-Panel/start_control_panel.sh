@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/nexus-bucket/GitBIOS-Control-Panel"
+APP_DIR="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel"
 
 # Prefer a venv under /nexus-bucket; fall back to $HOME if not writable
 DEFAULT_VENV="/nexus-bucket/cp-venv"
@@ -14,7 +14,7 @@ fi
 
 PORT="${PORT:-5000}"
 HTML_SOURCE="${HTML_SOURCE:-$APP_DIR/gitbios-control-panel.html}"
-LOG="/nexus-bucket/control-panel.log"
+LOG="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/control-panel.log"
 URL="http://localhost:${PORT}"
 
 healthcheck () {

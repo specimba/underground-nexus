@@ -1,11 +1,11 @@
-cat >/nexus-bucket/GitBIOS-Control-Panel/start_control_panel.sh <<'EOF'
+cat >/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/start_control_panel.sh <<'EOF'
 #!/usr/bin/env bash
 set -euo pipefail
 
-APP_DIR="/nexus-bucket/GitBIOS-Control-Panel"
+APP_DIR="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel"
 
 # Prefer a venv under /nexus-bucket; fall back to $HOME if not writable
-DEFAULT_VENV="/nexus-bucket/cp-venv"
+DEFAULT_VENV="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/cp-venv"
 FALLBACK_VENV="$HOME/.gitbios-venv"
 VENV_DIR="${VENV_DIR:-$DEFAULT_VENV}"
 if ! mkdir -p "$VENV_DIR" 2>/dev/null; then
@@ -15,7 +15,7 @@ fi
 
 PORT="${PORT:-5000}"
 HTML_SOURCE="${HTML_SOURCE:-$APP_DIR/gitbios-control-panel.html}"
-LOG="/nexus-bucket/control-panel.log"
+LOG="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/control-panel.log"
 URL="http://localhost:${PORT}"
 
 healthcheck () {
@@ -93,7 +93,7 @@ if [ "$USE_VENV" -eq 0 ]; then
   fi
 fi
 
-# Final check â bail with a helpful message if Flask is still missing
+# Final check - bail with a helpful message if Flask is still missing
 if ! "$PYBIN" -c "import flask" 2>/dev/null; then
   echo "ERROR: Flask is not available in venv ($VENV_DIR) or system Python." >&2
   echo "Workarounds:" >&2
@@ -115,4 +115,4 @@ fi
 open_url || true
 EOF
 
-chmod +x /nexus-bucket/GitBIOS-Control-Panel/start_control_panel.sh
+chmod +x /config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel

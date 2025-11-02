@@ -1,208 +1,194 @@
-# GitBIOS Control Panel â Nexus Edition
-
-A hybrid (online/offline) control panel that renders your `gitbios-control-panel.html` as a local web app and executes button profiles.
-Works inside **Underground Nexus / Nexus Creator Vault** without extra desktop dependencies.
-
-* Backend: Python + Flask (created on the fly)
-* Frontend: your static HTML (images cached for offline use)
-* Profiles: JSON files under `profiles/` (import/export supported)
-* Links open in the **system browser** (external)
+# GitBIOS Control Panel: Build Guide!
 
 ---
 
 ## Folder layout (expected)
 
 ```
-/nexus-bucket/GitBIOS-Control-Panel/
+//config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel
   server.py
   start_control_panel.sh
   gitbios-control-panel.html
   static/
-    assets/â¦             # icons, logos, cached images
-    cache/â¦              # offline cache (auto-created)
+    assets/             # created on launch; icons, logos, cached images
+    cache/              # offline cache (auto-created)
   profiles/
-    Default.json         # example or your own
+    Default.json        # example or your own
 ```
 
-> If your files arenât in this path yet, move them there before starting.
 
 ---
 
 ## Quick Start (most user-friendly)
 
-> These steps assume your Desktop is `/config/Desktop`. If your environment uses a different Desktop path, adjust step 3 accordingly.
+> These steps assume your Desktop is `/config/Desktop`. If your environment uses a different Desktop path, adjust file paths accordingly accordingly.
 
-### 1) Ensure the app directory exists
-
-```bash
-sudo install -d -m 755 -o abc -g abc /nexus-bucket/GitBIOS-Control-Panel
-sudo chown -R abc:abc /nexus-bucket/GitBIOS-Control-Panel
-```
-
-### 2) Make the launcher executable (idempotent)
+### 1) Install dependencies (run in the Git-Bios Control Panel directory):
 
 ```bash
-chmod +x /nexus-bucket/GitBIOS-Control-Panel/start_control_panel.sh
+sudo apt update
+sudo apt install python3 python3-pip -y
+sudo apt install python3-full
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements-flask.txt --break-system-packages
 ```
 
-### 3) Create the Desktop launcher
+### 2) Build the python server (run in the terminal); this is the code contained in the 'launch-desktop-icon.sh' file.
+
+```bash
+cat >/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/start_control_panel.sh <<'EOF'
+#!/usr/bin/env bash
+set -euo pipefail
+
+APP_DIR="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel"
+
+# Prefer a venv under /nexus-bucket; fall back to $HOME if not writable
+DEFAULT_VENV="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/cp-venv"
+FALLBACK_VENV="$HOME/.gitbios-venv"
+VENV_DIR="${VENV_DIR:-$DEFAULT_VENV}"
+if ! mkdir -p "$VENV_DIR" 2>/dev/null; then
+  VENV_DIR="$FALLBACK_VENV"
+  mkdir -p "$VENV_DIR"
+fi
+
+PORT="${PORT:-5000}"
+HTML_SOURCE="${HTML_SOURCE:-$APP_DIR/gitbios-control-panel.html}"
+LOG="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/control-panel.log"
+URL="http://localhost:${PORT}"
+
+healthcheck () {
+python3 - "$@" <<'PY'
+import sys, urllib.request, urllib.error, time, os
+url=os.environ.get('URL')
+for _ in range(50):
+    try:
+        with urllib.request.urlopen(url+'/healthz', timeout=1) as r:
+            if r.status==200: sys.exit(0)
+    except Exception:
+        time.sleep(0.2)
+sys.exit(1)
+PY
+}
+
+open_url () {
+  for B in \
+    "${BROWSER:-}" \
+    /usr/bin/firefox /snap/bin/firefox \
+    /usr/bin/chromium /usr/bin/chromium-browser \
+    /usr/bin/google-chrome /usr/bin/google-chrome-stable \
+    /usr/bin/sensible-browser \
+    /usr/bin/gio /usr/bin/xdg-open
+  do
+    [ -n "$B" ] || continue
+    if [ "$B" = "/usr/bin/gio" ]; then
+      nohup gio open "$URL" >/dev/null 2>&1 && return 0
+    elif [ -x "$B" ]; then
+      nohup "$B" "$URL" >/dev/null 2>&1 && return 0
+    fi
+  done
+  echo "Could not find a browser to open $URL" >> "$LOG"
+  return 1
+}
+
+# -------------------------
+# Robust interpreter select
+# -------------------------
+PYBIN="python3"
+USE_VENV=0
+
+# Check if venv module is available at all (python3-venv might be missing)
+if "$PYBIN" -Im venv -h >/dev/null 2>&1; then
+  if [ ! -x "$VENV_DIR/bin/python3" ]; then
+    # Try to create the venv; if ensurepip explodes, we catch it and continue without venv
+    if "$PYBIN" -Im venv "$VENV_DIR" >/dev/null 2>&1; then
+      USE_VENV=1
+      # Try to ensure pip inside the venv (ignore failure; we'll fall back later)
+      "$VENV_DIR/bin/python3" -Im ensurepip --upgrade >/dev/null 2>&1 || true
+    fi
+  else
+    USE_VENV=1
+  fi
+fi
+
+if [ "$USE_VENV" -eq 1 ]; then
+  PYBIN="$VENV_DIR/bin/python3"
+  # If Flask missing in venv, try to install (only if pip exists)
+  if ! "$PYBIN" -c "import flask" 2>/dev/null; then
+    if [ -x "$VENV_DIR/bin/pip" ]; then
+      TMPDIR=/var/tmp PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/pip" install "Flask==3.0.2" || true
+    fi
+    # If still no Flask, abandon venv and use system Python
+    "$PYBIN" -c "import flask" 2>/dev/null || USE_VENV=0
+  fi
+fi
+
+if [ "$USE_VENV" -eq 0 ]; then
+  PYBIN="python3"
+  # If Flask missing on the system interpreter, install to user site (no sudo)
+  if ! "$PYBIN" -c "import flask" 2>/dev/null; then
+    # Try best-effort user install; ignore failures so we can still show logs
+    "$PYBIN" -m pip install --user --break-system-packages --no-cache-dir "Flask==3.0.2" || true
+  fi
+fi
+
+# Final check - bail with a helpful message if Flask is still missing
+if ! "$PYBIN" -c "import flask" 2>/dev/null; then
+  echo "ERROR: Flask is not available in venv ($VENV_DIR) or system Python." >&2
+  echo "Workarounds:" >&2
+  echo "  1) Try: sudo apt-get update && sudo apt-get install -y python3-venv" >&2
+  echo "  2) Or run once: python3 -m pip install --user --break-system-packages Flask==3.0.2" >&2
+  exit 1
+fi
+
+# -------------------------
+# Start the server if needed
+# -------------------------
+export URL
+if ! healthcheck; then
+  cd "$APP_DIR"
+  (PORT="$PORT" HTML_SOURCE="$HTML_SOURCE" nohup "$PYBIN" server.py >> "$LOG" 2>&1 &) >/dev/null
+  healthcheck || echo "Started; health check not ready yet." >> "$LOG" || true
+fi
+
+open_url || true
+EOF
+
+chmod +x /config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel
+```
+
+### 3) Test the Control Panel by running the start script in your terminal (adjust the directory paths for the Git-Bios Control Panel directory as necessary):
+
+```bash
+/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/start_control_panel.sh
+```
+
+After running this command, the Git-BIOS control panel should pop up in your browser at localhost:5000.
+
+### 4) Make the button appear on your dekstop - and make it clickable!
 
 ```bash
 DESK="/config/Desktop"
 
 sudo install -d -m 755 -o abc -g abc "$DESK"
 
-sudo tee "$DESK/GitBios Control Panel.desktop" >/dev/null <<'EOF'
+sudo tee "$DESK/Git-Bios Control Panel.desktop" >/dev/null <<'EOF'
 [Desktop Entry]
 Version=1.0
 Type=Application
-Name=GitBios Control Panel
-Comment=Launch the Nexus control panel
-Exec=/nexus-bucket/GitBIOS-Control-Panel/start_control_panel.sh
-Path=/nexus-bucket/GitBIOS-Control-Panel
-Icon=/nexus-bucket/GitBIOS-Control-Panel/static/assets/nexus-logo.png
+Name=Git-Bios Control Panel
+Comment=Launch the Git-BIOS Control Panel
+Exec=/config/Git-BIOS-Control-Panel/start_control_panel.sh
+Path=/config/Git-BIOS-Control-Panel
+Icon=/config/Git-BIOS-Control-Panel/static/assets/nexus-logo.png
 Terminal=false
 Categories=Utility;
-TryExec=/nexus-bucket/GitBIOS-Control-Panel/start_control_panel.sh
+TryExec=/config/Git-BIOS-Control-Panel/start_control_panel.sh
 EOF
 
-sudo chown abc:abc "$DESK/GitBios Control Panel.desktop"
-chmod +x "$DESK/GitBios Control Panel.desktop"
-gio set "$DESK/GitBios Control Panel.desktop" metadata::trusted true 2>/dev/null || true
+sudo chown abc:abc "$DESK/Git-Bios Control Panel.desktop"
+chmod +x "$DESK/Git-Bios Control Panel.desktop"
+gio set "$DESK/Git-Bios Control Panel.desktop" metadata::trusted true 2>/dev/null || true
 ```
 
-Double-click **GitBios Control Panel** on the Desktop.
-
-> First run will create a private Python environment if possible; otherwise it falls back to system Python and installs Flask to the user site automatically.
-
----
-
-## How it works (important behavior)
-
-* `start_control_panel.sh` prefers a venv at `/nexus-bucket/cp-venv`.
-  If it canât create/use that (permissions or `ensurepip` missing), it **falls back** to `~/.gitbios-venv`.
-  If even that fails, it **uses system Python** and installs Flask **to user site** (no sudo/apt).
-* Browser opens to `http://localhost:5000` (default).
-  Health endpoint: `http://localhost:5000/healthz`.
-* Logs live at `/nexus-bucket/control-panel.log`.
-
----
-
-## OPTIONAL: Change the port (e.g., 5010)
-
-**One-off run:**
-
-```bash
-PORT=5010 /nexus-bucket/GitBIOS-Control-Panel/start_control_panel.sh
-```
-
-**Make it permanent via Desktop icon:**
-
-```bash
-DESK="/config/Desktop"
-# Edit the Exec= line to inject env PORT=5010
-sed -i 's#^Exec=.*#Exec=env PORT=5010 /nexus-bucket/GitBIOS-Control-Panel/start_control_panel.sh#' \
-  "$DESK/GitBios Control Panel.desktop"
-```
-
----
-
-## Troubleshooting
-
-### 1) âPermission deniedâ creating `/nexus-bucket/cp-venv`
-
-* The launcher now **auto-falls back** to `~/.gitbios-venv`.
-* If you want the bucket venv explicitly:
-
-  ```bash
-  sudo install -d -m 755 -o abc -g abc /nexus-bucket
-  sudo rm -rf /nexus-bucket/cp-venv
-  sudo install -d -m 755 -o abc -g abc /nexus-bucket/cp-venv
-  ```
-
-### 2) `ensurepip` / venv creation failure
-
-* Normal for minimal images missing `python3-venv`. The launcher will:
-
-  1. Try venv.
-  2. Fall back to user-site install for Flask.
-* Optional base image improvement:
-
-  ```bash
-  sudo apt-get update && sudo apt-get install -y python3-venv
-  ```
-
-### 3) âNo browser foundâ / click opens nothing
-
-* The launcher tries `gio open`, Firefox, Chromium/Chrome, and `xdg-open`.
-* Install one of those if needed, or set `BROWSER`:
-
-  ```bash
-  BROWSER=/usr/bin/firefox /nexus-bucket/GitBIOS-Control-Panel/start_control_panel.sh
-  ```
-
-### 4) Desktop icon asks âExecute or View?â
-
-* We set the trust flag, but some DEs ignore it. Right-click â **Properties** â enable **Allow launching**.
-* Ensure the file is executable:
-
-  ```bash
-  chmod +x "/config/Desktop/GitBios Control Panel.desktop"
-  ```
-
-### 5) Health & logs
-
-```bash
-curl -fsS http://localhost:5000/healthz && echo OK
-tail -n 200 /nexus-bucket/control-panel.log
-```
-
-### 6) **Do not** do a recursive `chown` on Desktop
-
-Never run:
-
-```bash
-chown -R abc:abc /config/Desktop
-```
-
-It will hit bind mounts/repo files and throw **Operation not permitted** repeatedly.
-Only touch the specific `.desktop` file or the app folder under `/nexus-bucket`.
-
----
-
-## Uninstall / Cleanup
-
-```bash
-# Stop is just closing the browser tab (server self-manages).
-# Remove Desktop launcher
-rm -f "/config/Desktop/GitBios Control Panel.desktop"
-
-# Remove app and venvs
-rm -rf /nexus-bucket/GitBIOS-Control-Panel
-rm -rf /nexus-bucket/cp-venv
-rm -rf ~/.gitbios-venv
-rm -f  /nexus-bucket/control-panel.log
-```
-
----
-
-## Advanced: override venv location
-
-Prefer keeping venv in `$HOME`? Update the Desktop icon:
-
-```bash
-sed -i 's#^Exec=.*#Exec=env VENV_DIR=$HOME/.gitbios-venv /nexus-bucket/GitBIOS-Control-Panel/start_control_panel.sh#' \
-  "/config/Desktop/GitBios Control Panel.desktop"
-```
-
----
-
-## Notes
-
-* External links open in your system browser (per your request).
-* Cloud Jam Challenge image has been swapped to the Shopify URL you provided; other images resolve from the GitHub WordPress artifact path and are cached for offline.
-* No `tmux` required; weâre using the browser + logs for visibility.
-
----
-
-If you want this wrapped as a Debian post-install or s6 service in your base image later, I can draft those too.
+The **Git-BIOS Control Panel** should now appear on your desktop. Double-click it whenever you want to use the control pane.
