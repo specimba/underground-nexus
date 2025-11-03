@@ -180,6 +180,7 @@ RUN echo "docker exec workbench bash /config/Desktop/nexus-bucket/terraform-work
 
 #Fix workbench apt (if broken) and set up rofi-based desktop menu
 RUN echo "docker exec workbench bash /config/Desktop/nexus-bucket/underground-nexus/'Dagger CI'/Scripts/Maintenance/workbench-apt-update-repair.sh" >> deploy-olympiad.sh
+RUN echo "docker exec workbench apt install rofi -y" >> deploy-olympiad.sh
 RUN echo "docker exec workbench bash /config/Desktop/nexus-bucket/underground-nexus/'Dagger CI'/Scripts/configure-desktop-menu.sh" >> deploy-olympiad.sh
 
 RUN echo "docker exec Athena0 curl https://raw.githubusercontent.com/Underground-Ops/underground-nexus/main/underground-nexus-update.sh | bash" >> deploy-olympiad.sh
