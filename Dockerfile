@@ -182,6 +182,8 @@ RUN echo "docker exec workbench bash /config/Desktop/nexus-bucket/terraform-work
 RUN echo "docker exec workbench bash /config/Desktop/nexus-bucket/underground-nexus/'Dagger CI'/Scripts/Maintenance/workbench-apt-update-repair.sh" >> deploy-olympiad.sh
 RUN echo "docker exec workbench apt install rofi -y" >> deploy-olympiad.sh
 RUN echo "docker exec workbench bash /config/Desktop/nexus-bucket/underground-nexus/'Dagger CI'/Scripts/configure-desktop-menu.sh" >> deploy-olympiad.sh
+#Install Git-BIOS Control Panel
+RUN echo "docker exec workbench bash /config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/install-git-bios-control-panel.sh || true" >> deploy-olympiad.sh
 
 RUN echo "docker exec Athena0 curl https://raw.githubusercontent.com/Underground-Ops/underground-nexus/main/underground-nexus-update.sh | bash" >> deploy-olympiad.sh
 
