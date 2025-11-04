@@ -3,7 +3,7 @@ sudo docker exec Athena0 docker run -itd --privileged --name=nexus-creator-vault
 sudo docker exec Athena0 docker start nexus-creator-vault
 sleep 10
 xdg-mime default firefox.desktop x-scheme-handler/https x-scheme-handler/http
-xdg-open http://10.20.0.1:1050 &
+xdg-open https://nexus-creator-vault:3001 &
 
 #Running this script once deploys a Nexus Creator Vault with administator access to Docker
 
@@ -23,8 +23,8 @@ xdg-open http://10.20.0.1:1050 &
 
 #Use the code below to deploy nexus-creator-vault in kiosk mode to take over a device's desktop
 #xdg-mime default firefox.desktop x-scheme-handler/https x-scheme-handler/http
-#firefox --kiosk http://10.20.0.1.1050 &
-#xdg-open http://10.20.0.1:1050
+#firefox --kiosk https://nexus-creator-vault:3001 &
+#xdg-open https://nexus-creator-vault:3001
 
 #Add a custom time limit to kiosk mode if the desktop is supposed to appear temporarily
 #sleep 120

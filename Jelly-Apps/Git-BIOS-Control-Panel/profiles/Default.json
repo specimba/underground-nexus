@@ -45,6 +45,11 @@
     "interactive": false
   },
   {
+    "label": "Deploy NCV Student Sandbox",
+    "command": "sudo bash /config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Nexus-Creator-Vault/nexus-creator-vault.jelly.bash",
+    "interactive": false
+  },
+  {
     "label": "Get Doppelganger Packages (to desktop)",
     "command": "cp /config/Desktop/nexus-bucket/underground-nexus/'Dagger CI'/Scripts/install-doppelganger.sh /config/Desktop/install-doppelganger.sh",
     "interactive": false
