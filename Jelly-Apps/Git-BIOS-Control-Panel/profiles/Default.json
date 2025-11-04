@@ -1,47 +1,22 @@
 [
   {
-    "label": "Update Index - Launch Doppelganger Chat",
-    "command": "if [ -d /opt/mcp ]; then cd /opt/mcp && python3 chat_with_index.py; else bash /nexus-bucket/digital-twin-production-installer-v2.sh && cd /opt/mcp && python3 chat_with_index.py; fi",
+    "label": "Launch Update and Chaos Manager - Athena0",
+    "command": "docker exec -it Athena0 bash",
     "interactive": true
   },
   {
-    "label": "WARNING! Deploy Langgraph RAG API",
-    "command": "bash /nexus-bucket/underground-doppelganger/build-langgraph-backend.sh",
+    "label": "Install nmap",
+    "command": "sudo apt install nmap -y",
     "interactive": false
   },
   {
-    "label": "WARNING! Launch Doppelganger Shell - Needs RAG API",
-    "command": "cd /opt/mcp && python3 doppelganger-shell.py &",
-    "interactive": false
-  },
-  {
-    "label": "Launch Package Manager - Cerberus Manager",
-    "command": "docker exec -it Cerberus-Manager bash",
+    "label": "Update and Repair Filesystem",
+    "command": "sudo apt update --fix-missing && sudo apt update && sudo apt upgrade -y --fix-broken && sudo apt full-upgrade -y && sudo apt autoremove -y && sudo apt clean && sudo dpkg --configure -a && df -h && free -h",
     "interactive": true
   },
   {
-    "label": "Deploy OPS for CI/CD runners",
-    "command": "docker start Cerberus-Manager || true && docker exec -i Cerberus-Manager bash OPS",
-    "interactive": true
-  },
-  {
-    "label": "Rebuild the OPS CI/CD pipeline",
-    "command": "docker start Cerberus-Manager || true && docker exec -i Cerberus-Manager bash OPS-rebuild",
-    "interactive": true
-  },
-  {
-    "label": "Deploy Nexus Creator Vault (DEV)",
-    "command": "docker exec -i Cerberus-Manager DEV",
-    "interactive": false
-  },
-  {
-    "label": "Backup All Saved Buttons",
-    "command": "__INTERNAL_BACKUP__",
-    "interactive": false
-  },
-  {
-    "label": "Restore Saved Buttons",
-    "command": "__INTERNAL_RESTORE__",
+    "label": "Get Doppelganger Packages (to desktop)",
+    "command": "cp /config/Desktop/nexus-bucket/underground-nexus/'Dagger CI'/Scripts/install-doppelganger.sh /config/Desktop/install-doppelganger.sh",
     "interactive": false
   }
 ]
