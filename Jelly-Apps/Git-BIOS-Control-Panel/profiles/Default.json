@@ -1,8 +1,23 @@
 [
   {
-    "label": "Launch Update and Chaos Manager - Athena0",
-    "command": "docker exec -it Athena0 bash",
+    "label": "Terminator CLI",
+    "command": "bash",
     "interactive": true
+  },
+  {
+    "label": "Launch Update and Chaos Manager CLI - Athena0",
+    "command": "sudo docker exec -it Athena0 bash",
+    "interactive": true
+  },
+  {
+    "label": "Launch Application Menu",
+    "command": "rofi -show drun",
+    "interactive": false
+  },
+  {
+    "label": "Open Minimized Windows",
+    "command": "rofi -show window",
+    "interactive": false
   },
   {
     "label": "Install nmap",
@@ -10,9 +25,24 @@
     "interactive": false
   },
   {
+    "label": "Launch Firefox",
+    "command": "firefox &",
+    "interactive": false
+  },
+  {
+    "label": "Close Firefox",
+    "command": "pkill firefox",
+    "interactive": false
+  },
+  {
     "label": "Update and Repair Filesystem",
     "command": "sudo apt update --fix-missing && sudo apt update && sudo apt upgrade -y --fix-broken && sudo apt full-upgrade -y && sudo apt autoremove -y && sudo apt clean && sudo dpkg --configure -a && df -h && free -h",
     "interactive": true
+  },
+  {
+    "label": "Restart Workbench",
+    "command": "sudo docker restart workbench",
+    "interactive": false
   },
   {
     "label": "Get Doppelganger Packages (to desktop)",
