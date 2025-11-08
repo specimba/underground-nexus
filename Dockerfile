@@ -51,6 +51,7 @@ RUN echo "echo "RUN bash workbench.sh" >> /nexus-bucket/workbench.dockerfile" >>
 RUN echo "docker build -f /nexus-bucket/workbench.dockerfile -t workbench:latest /nexus-bucket" >> deploy-olympiad.sh
 RUN echo "docker run -itd  --privileged --name=workbench -h workbench -e PUID=1000 -e PGID=1000 -e TZ=America/Colorado -p 1000:3000 --dns=10.20.0.20 --net=Inner-Athena --restart=always -v /dev:/dev -v workbench0:/config -v /nexus-bucket:/config/Desktop/nexus-bucket -v /var/run/docker.sock:/var/run/docker.sock natoascode/workbench0:ubuntu || true" >> deploy-olympiad.sh
 RUN echo "docker exec workbench bash /workbench.sh || true" >> deploy-olympiad.sh
+RUN echo "docker exec workbench sudo apt install firefox -y || true" >> deploy-olympiad.sh
 RUN echo "docker run -itd  --privileged --name=workbench -h workbench -e PUID=1000 -e PGID=1000 -e TZ=America/Colorado -p 1000:3000 --dns=10.20.0.20 --net=Inner-Athena --restart=always -v /dev:/dev -v workbench0:/config -v /nexus-bucket:/config/Desktop/nexus-bucket -v /var/run/docker.sock:/var/run/docker.sock workbench:latest" >> deploy-olympiad.sh || true
 #RUN echo "docker run -itd  --privileged --name=workbench -h workbench -e PUID=1000 -e PGID=1000 -e TZ=America/Colorado -p 1000:3000 --dns=10.20.0.20 --net=Inner-Athena --restart=always -v workbench0:/config -v /nexus-bucket:/config/Desktop/nexus-bucket -v /var/run/docker.sock:/var/run/docker.sock linuxserver/webtop:ubuntu-mate" >> deploy-olympiad.sh
 
