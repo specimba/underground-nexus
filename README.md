@@ -1,4 +1,5 @@
 # Underground Nexus — Sovereign Kernel Layer
+(micro-hypervisor with Git-BIOS and robotics integration)
 
 **Policy-guided automation that builds and governs your infrastructure.**
 
