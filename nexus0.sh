@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# NEXUS0.SH v5.5 — Pure Package Installer + Runtime Hook Writer
+# NEXUS0.SH v5.8 — Pure Package Installer + Runtime Hook Writer
 # Cloud Underground · Underground Nexus
 # =============================================================================
 #
@@ -35,7 +35,7 @@ warn() { echo "[nexus0] ⚠ $*" | tee -a "${NX_LOG}"; }
 err()  { echo "[nexus0] ✗ $*" | tee -a "${NX_LOG}" >&2; }
 
 log "═══════════════════════════════════════════════════"
-log "nexus0.sh v5.5 — Pure Package Installer"
+log "nexus0.sh v5.8 — Pure Package Installer"
 log "Started: $(date)"
 log "═══════════════════════════════════════════════════"
 
@@ -454,31 +454,56 @@ id abc >/dev/null 2>&1 && chown -R abc:abc /nexus-bucket 2>/dev/null || \
 
 # =============================================================================
 # STEP 14: WALLPAPERS
+#
+# Covers ALL 3 wallpaper theme directories used by different KDE Plasma versions:
+#   /usr/share/wallpapers/KubuntuLight/contents/images/       (Plasma 6 default)
+#   /usr/share/wallpapers/Next/contents/images/               (Plasma 5 / older)
+#   /usr/share/wallpapers/Next/contents/images_dark/          (dark theme variant)
+#
+# Each directory gets both wallpaper types:
+#   - Sea-space-jelly (landscape/widescreen, all standard resolutions)
+#   - Moon-jelly (portrait/ultrawide, portrait resolutions)
+#
+# ALL .svg and .png files are removed from every dir — KDE picks SVG over JPG
+# when both exist, overriding our custom wallpapers.
 # =============================================================================
 
 log "STEP 14: Wallpapers"
 
 WALLPAPER_BASE="https://raw.githubusercontent.com/Underground-Ops/underground-nexus/main/Wallpapers"
-WALLPAPER_DIR="/usr/share/wallpapers/KubuntuLight/contents/images"
-mkdir -p "${WALLPAPER_DIR}" && cd "${WALLPAPER_DIR}" || true
 
-retry 3 5 wget -q --timeout=60 "${WALLPAPER_BASE}/nexus0-sea-space-jelly-highres.jpg" \
-    -O "1440x900.jpg" && ok "Highres wallpaper" || warn "Highres failed"
-[ -f "1440x900.jpg" ] && for SIZE in 1280x800 1366x768 1600x1200 1680x1050 1920x1080 1920x1200 2560x1440; do
-    rm -f "${SIZE}.jpg" "${SIZE}.png" 2>/dev/null; cp "1440x900.jpg" "${SIZE}.jpg"; done
+install_wallpapers() {
+    local DIR="$1"
+    mkdir -p "${DIR}" && cd "${DIR}" || return
 
-retry 3 5 wget -q --timeout=60 "${WALLPAPER_BASE}/nexus0-sea-space-jelly.jpg" \
-    -O "1280x1024.jpg" && ok "Standard wallpaper" || warn "Standard failed"
-[ -f "1280x1024.jpg" ] && { rm -f "1024x768.jpg" "1024x768.png" 2>/dev/null; cp "1280x1024.jpg" "1024x768.jpg"; }
+    # Landscape / widescreen — sea-space-jelly-highres covers all standard ratios
+    retry 3 5 wget -q --timeout=60 "${WALLPAPER_BASE}/nexus0-sea-space-jelly-highres.jpg" \
+        -O "1440x900.jpg" && ok "Highres wallpaper → ${DIR}" || warn "Highres failed"
+    [ -f "1440x900.jpg" ] && for SIZE in 1280x800 1366x768 1600x1200 1680x1050 1920x1080 1920x1200 2560x1440; do
+        cp "1440x900.jpg" "${SIZE}.jpg" 2>/dev/null || true; done
 
-retry 3 5 wget -q --timeout=60 "${WALLPAPER_BASE}/nexus0-moon-jelly.jpg" \
-    -O "1080x1920.jpg" && ok "Portrait wallpaper" || warn "Portrait failed"
-[ -f "1080x1920.jpg" ] && for SIZE in 360x720 720x1440; do
-    rm -f "${SIZE}.jpg" "${SIZE}.png" 2>/dev/null; cp "1080x1920.jpg" "${SIZE}.jpg"; done
+    # Standard landscape — sea-space-jelly for 4:3 ratios
+    retry 3 5 wget -q --timeout=60 "${WALLPAPER_BASE}/nexus0-sea-space-jelly.jpg" \
+        -O "1280x1024.jpg" && ok "Standard wallpaper → ${DIR}" || warn "Standard failed"
+    [ -f "1280x1024.jpg" ] && cp "1280x1024.jpg" "1024x768.jpg" 2>/dev/null || true
 
-rm -rf ./*.png 2>/dev/null || true
-cd / || true
-ok "Wallpapers installed"
+    # Portrait / ultrawide — moon-jelly for tall and very wide resolutions
+    retry 3 5 wget -q --timeout=60 "${WALLPAPER_BASE}/nexus0-moon-jelly.jpg" \
+        -O "1080x1920.jpg" && ok "Portrait wallpaper → ${DIR}" || warn "Portrait failed"
+    [ -f "1080x1920.jpg" ] && for SIZE in 360x720 720x1440 1440x2560 2160x3840 1440x2960 5120x2880 7680x2160; do
+        cp "1080x1920.jpg" "${SIZE}.jpg" 2>/dev/null || true; done
+
+    # Remove ALL svg and png files — KDE picks SVG/PNG over JPG when both exist
+    rm -f ./*.svg ./*.png 2>/dev/null || true
+
+    cd / || true
+}
+
+install_wallpapers "/usr/share/wallpapers/KubuntuLight/contents/images"
+install_wallpapers "/usr/share/wallpapers/Next/contents/images"
+install_wallpapers "/usr/share/wallpapers/Next/contents/images_dark"
+
+ok "Wallpapers installed (KubuntuLight/images + Next/images + Next/images_dark)"
 
 # =============================================================================
 # STEP 15: CONTROL PANEL HTML
@@ -537,6 +562,21 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
     printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/ollama/type
     ok "s6 service defined: ollama"
 
+    # --- s6: chrome-remote-desktop (amd64 only) ---
+    # CRD needs the user to run the Google auth flow once (ssh as abc, paste
+    # the Authorize string from remotedesktop.google.com/headless).
+    # The service will exit cleanly if CRD is not yet authorized.
+    if [ "${ARCH}" = "amd64" ] && [ -f /opt/google/chrome-remote-desktop/chrome-remote-desktop ]; then
+        mkdir -p /etc/s6-overlay/s6-rc.d/chrome-remote-desktop
+        printf '#!/usr/bin/with-contenv bash\n[ -f /opt/google/chrome-remote-desktop/chrome-remote-desktop ] || { echo "[s6-crd] binary not found"; exit 0; }\nexec s6-setuidgid abc /opt/google/chrome-remote-desktop/chrome-remote-desktop --start\n' \
+            > /etc/s6-overlay/s6-rc.d/chrome-remote-desktop/run
+        printf 'longrun\n' > /etc/s6-overlay/s6-rc.d/chrome-remote-desktop/type
+        chmod +x /etc/s6-overlay/s6-rc.d/chrome-remote-desktop/run
+        ok "s6 service defined: chrome-remote-desktop"
+    else
+        warn "CRD s6 service skipped (arm64 or binary not found)"
+    fi
+
     # --- cont-init: KVM permissions (s6 legacy path) ---
     printf '#!/usr/bin/with-contenv bash\n[ -e /dev/kvm ] || exit 0\nchown root:kvm /dev/kvm 2>/dev/null||true\nchmod 660 /dev/kvm 2>/dev/null||true\nusermod -aG kvm abc 2>/dev/null||true\necho "[s6-init] KVM permissions set"\n' \
         > /etc/s6-overlay/cont-init.d/01-kvm-permissions
@@ -549,16 +589,79 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
         > /custom-cont-init.d/01-nexus-setup.sh
     printf '# Nexus Creator Vault runtime setup — runs after /config exists\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
-    printf 'echo "[nexus-init] Nexus Creator Vault v5.5 runtime setup"\n' \
+    printf 'echo "[nexus-init] Nexus Creator Vault v5.8 runtime setup"\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
+
+    # --- XDG user directories ---
+    # Creates the standard Linux home folders (Documents, Downloads, Music,
+    # Pictures, Videos, Templates, Public) inside /config (the abc home dir).
+    # xdg-user-dirs-update creates these on first login but only if called.
+    # We call it explicitly so they exist from the very first boot, and add
+    # a repair check that recreates any that are missing on subsequent boots.
+    printf 'export HOME=/config\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf 'export XDG_CONFIG_HOME=/config/.config\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf 'mkdir -p /config/.config\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf 'command -v xdg-user-dirs-update >/dev/null 2>&1 && xdg-user-dirs-update --force 2>/dev/null || true\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    # Belt-and-suspenders: create dirs directly even if xdg tool fails
+    printf 'for D in Desktop Documents Downloads Music Pictures Public Templates Videos; do mkdir -p "/config/${D}"; done\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf 'chown -R abc:abc /config/Desktop /config/Documents /config/Downloads /config/Music /config/Pictures /config/Public /config/Templates /config/Videos 2>/dev/null || chown -R 1000:1000 /config/Desktop /config/Documents /config/Downloads /config/Music /config/Pictures /config/Public /config/Templates /config/Videos 2>/dev/null || true\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf 'echo "[nexus-init] XDG home directories ready"\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+
+    # --- /nexus-bucket ---
     printf 'mkdir -p /nexus-bucket\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
     printf 'chown -R abc:abc /nexus-bucket 2>/dev/null || chown -R 1000:1000 /nexus-bucket || true\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
+
+    # --- KVM permissions ---
     printf '[ -e /dev/kvm ] && { chown root:kvm /dev/kvm 2>/dev/null||true; chmod 660 /dev/kvm 2>/dev/null||true; usermod -aG kvm abc 2>/dev/null||true; echo "[nexus-init] KVM Tier 1 active"; } || echo "[nexus-init] /dev/kvm absent (add --privileged for Tier 1)"\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
     printf 'usermod -aG libvirt abc 2>/dev/null || true\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
+
+    # --- Wallpaper: remove SVGs from both theme dirs so JPGs win ---
+    # KDE Plasma 6 ships SVG wallpapers for every resolution alongside JPGs.
+    # When both exist KDE picks SVG, overriding our custom JPGs.
+    # This runs on every boot and is idempotent — safe to repeat.
+    printf 'rm -f /usr/share/wallpapers/KubuntuLight/contents/images/*.svg /usr/share/wallpapers/KubuntuLight/contents/images/*.png 2>/dev/null || true\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf 'rm -f /usr/share/wallpapers/Next/contents/images/*.svg /usr/share/wallpapers/Next/contents/images/*.png 2>/dev/null || true\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf 'rm -f /usr/share/wallpapers/Next/contents/images_dark/*.svg /usr/share/wallpapers/Next/contents/images_dark/*.png 2>/dev/null || true\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf 'echo "[nexus-init] Wallpaper SVG/PNG overrides cleared"\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+
+    # --- Wallpaper: apply via plasma-apply-wallpaperimage ---
+    # Tries all known DBUS socket locations used by different linuxserver versions.
+    # Runs as abc with the correct XDG_RUNTIME_DIR for the Wayland session.
+    printf 'WALLPAPER_JPG="/usr/share/wallpapers/KubuntuLight/contents/images/1440x900.jpg"\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf '[ -f "${WALLPAPER_JPG}" ] && command -v plasma-apply-wallpaperimage >/dev/null 2>&1 && (\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf '  for DBUS_TRY in unix:path=/config/.XDG/bus unix:path=/run/user/1000/bus unix:path=/tmp/dbus-session-bus; do\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf '    export DBUS_SESSION_BUS_ADDRESS="${DBUS_TRY}"\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf '    export XDG_RUNTIME_DIR=/config/.XDG\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf '    export WAYLAND_DISPLAY=wayland-1\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf '    plasma-apply-wallpaperimage "${WALLPAPER_JPG}" 2>/dev/null && echo "[nexus-init] Wallpaper applied (${DBUS_TRY})" && break || true\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf '  done\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+    printf ') || true\n' \
+        >> /custom-cont-init.d/01-nexus-setup.sh
+
+    # --- Git pull underground-nexus ---
     printf '[ -d "/nexus-bucket/underground-nexus/.git" ] && git -C /nexus-bucket/underground-nexus pull --rebase 2>/dev/null || git clone --depth=1 https://github.com/Underground-Ops/underground-nexus.git /nexus-bucket/underground-nexus 2>/dev/null || true\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
     printf 'chown -R abc:abc /nexus-bucket 2>/dev/null || true\n' \
@@ -617,7 +720,7 @@ ok "Cleanup done"
 
 log ""
 log "═══════════════════════════════════════════════════"
-log "nexus0.sh v5.5 COMPLETE"
+log "nexus0.sh v5.8 COMPLETE"
 log "═══════════════════════════════════════════════════"
 log "Mode:       $([ "${CONTAINER_MODE}" = "true" ] && echo "CONTAINER" || echo "BARE METAL")"
 log "LinuxSrv:   ${LINUXSERVER_MODE}"
