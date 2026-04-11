@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
 # =============================================================================
-# NEXUS0.SH v5 — Polymorphic Payload
+# NEXUS0.SH v5.1 — Polymorphic Payload (NAME_REGEX CASCADE FIX)
 # Cloud Underground · Underground Nexus
 # =============================================================================
 #
 # WHAT THIS IS:
 #   Single-script bootstrap for the Underground Nexus ecosystem.
 #   Works on every deployment surface:
-#     • natoascode/nexus0 containers (the DEV command)
-#     • lscr.io/linuxserver/webtop:ubuntu-kde containers
+#     • lscr.io/linuxserver/webtop:ubuntu-kde containers (PRIMARY — DEV command)
 #     • Custom Ubuntu/Debian containers with KDE
 #     • Bare-metal Ubuntu 22.04 / 24.04 / 25.04 (DEV-metal path)
 #     • Kubernetes pods
@@ -18,32 +17,43 @@
 #   continues. Only the DISPLAY MECHANISM (KasmVNC s6 services vs SDDM)
 #   is conditional on environment detection.
 #
-# USER MANAGEMENT (the right way):
-#   Containers (linuxserver): Do NOT change UID here. Pass -e PUID=1000 -e PGID=1000
-#     at docker run time. Linuxserver handles UID mapping natively through /init.
+# v5.1 CRITICAL FIX — ROOT CAUSE OF CASCADE FAILURES:
+#   Chrome Remote Desktop's postinst script tries to create a system user
+#   named "_crd_network". The default Ubuntu adduser NAME_REGEX rejects
+#   names starting with "_" (underscore). This leaves chrome-remote-desktop
+#   in a HALF-CONFIGURED dpkg state. Every subsequent apt-get call attempts
+#   to re-run the failed postinst, failing again, poisoning ALL subsequent
+#   package installs with "E: Sub-process /usr/bin/dpkg returned an error
+#   code (1)" — even for packages that DID install correctly.
+#
+#   THE FIX (applied in STEP 0, before any package installs):
+#     1. Patch /etc/adduser.conf to allow underscore-prefixed usernames
+#     2. Pre-create the _crd_network user so postinst finds it and no-ops
+#     3. Use dpkg --force-bad-name during CRD install (belt-and-suspenders)
+#     4. Call clear_dpkg_errors() after every install step
+#
+# USER MANAGEMENT:
+#   Containers (linuxserver): Do NOT change UID here. Pass -e PUID=1000
+#     at docker run time. Linuxserver handles UID mapping via /init.
 #     abc's home is /config (linuxserver standard for webtop volumes).
-#   Bare metal / non-linuxserver: abc is created at UID 1000 if it does not exist.
+#   Bare metal / non-linuxserver: abc is created at UID 1000 if not present.
 #     abc's home is /home/abc.
-#   The script detects which scenario it is in and acts accordingly.
 #
 # KVM INTELLIGENCE:
 #   Always installs QEMU/KVM packages. At runtime, probes /dev/kvm:
 #     • /dev/kvm present  → Tier 1: hardware acceleration (KVM native speed)
-#     • /dev/kvm missing  → Tier 2: QEMU TCG software emulation (slower, still works)
-#   KVM is a RUNTIME concern — the container must be started with
-#   --privileged -v /dev:/dev to pass /dev/kvm through.
+#     • /dev/kvm missing  → Tier 2: QEMU TCG software emulation
+#   KVM is RUNTIME-ONLY — container must use --privileged -v /dev:/dev
 #   This script never fails if KVM is unavailable. It adapts.
+#   During docker build: /dev/kvm is absent → "Tier 2" in log = expected.
 #
 # WALLPAPER SYSTEM (three-image, aspect-ratio responsive):
-#   nexus0-sea-space-jelly-highres.jpg → all landscape/widescreen sizes
-#   nexus0-sea-space-jelly.jpg         → standard/square sizes
-#   nexus0-moon-jelly.jpg              → portrait/vertical sizes
-#   KDE picks the closest filename match to the actual display resolution.
-#   rm -rf *.png removes kubuntu defaults so our JPGs take priority.
+#   nexus0-sea-space-jelly-highres.jpg → landscape/widescreen
+#   nexus0-sea-space-jelly.jpg         → standard/square
+#   nexus0-moon-jelly.jpg              → portrait/vertical
 #
 # =============================================================================
 
-# pipefail catches broken pipes but NOT every error — we handle errors manually
 set -o pipefail
 
 # =============================================================================
@@ -59,7 +69,7 @@ warn() { echo "[nexus0] ⚠ $*" | tee -a "${NX_LOG}"; }
 err()  { echo "[nexus0] ✗ $*" | tee -a "${NX_LOG}" >&2; }
 
 log "═══════════════════════════════════════════════════"
-log "nexus0.sh v5 — Polymorphic Payload"
+log "nexus0.sh v5.1 — Polymorphic Payload (NAME_REGEX FIX)"
 log "Started: $(date)"
 log "═══════════════════════════════════════════════════"
 
@@ -85,7 +95,6 @@ log "Architecture: ${ARCH}"
 CONTAINER_MODE=false
 LINUXSERVER_MODE=false
 
-# Primary container check
 if [ -f /.dockerenv ]; then
     CONTAINER_MODE=true
     log "/.dockerenv found → CONTAINER MODE"
@@ -94,20 +103,18 @@ elif grep -q 'container=' /proc/1/environ 2>/dev/null; then
     log "container= in PID1 environ → CONTAINER MODE"
 fi
 
-# Detect linuxserver base (has /run/s6 and /config managed by init)
 if [ -d /run/s6 ] || [ -f /etc/s6-overlay/s6-rc.d/user/type ] || \
    grep -q 'linuxserver' /etc/os-release 2>/dev/null || \
    [ -d /etc/s6-overlay ]; then
     LINUXSERVER_MODE=true
     log "s6-overlay detected → LINUXSERVER MODE"
-    log "  User home: /config (abc UID set by PUID env var at runtime)"
+    log "  User home: /config (abc UID set by PUID at runtime)"
 fi
 
 if [ "${CONTAINER_MODE}" = "false" ]; then
     log "No container markers → BARE METAL / VM MODE"
 fi
 
-# Determine abc's home directory
 if [ "${LINUXSERVER_MODE}" = "true" ]; then
     ABC_HOME="/config"
 else
@@ -119,7 +126,6 @@ export DEBIAN_FRONTEND=noninteractive
 
 # =============================================================================
 # RETRY HELPER
-# retry <max_attempts> <delay_secs> <command...>
 # =============================================================================
 
 retry() {
@@ -137,8 +143,56 @@ retry() {
 }
 
 # =============================================================================
+# HELPER: Clear broken dpkg state
+# Prevents any half-configured package from cascading to block later installs.
+# =============================================================================
+
+clear_dpkg_errors() {
+    dpkg --configure --force-confold -a 2>/dev/null || true
+    apt-get install -f -y 2>/dev/null || true
+}
+
+# =============================================================================
+# STEP 0: PRE-FLIGHT — NAME_REGEX FIX (MUST RUN BEFORE ANY PACKAGE INSTALLS)
+#
+# Chrome Remote Desktop's postinst creates user "_crd_network".
+# Ubuntu's default adduser NAME_REGEX rejects underscore-prefixed names.
+# Result without this fix: CRD postinst fails → dpkg marks it iF (broken) →
+# every subsequent apt-get re-triggers the broken postinst → ALL installs fail.
+#
+# Fix: patch NAME_REGEX to allow underscore prefix, pre-create _crd_network.
+# =============================================================================
+
+log "─────────────────────────────────────────────────────"
+log "STEP 0: Pre-flight — NAME_REGEX fix (prevents dpkg cascade)"
+log "─────────────────────────────────────────────────────"
+
+if [ -f /etc/adduser.conf ]; then
+    sed -i '/^NAME_REGEX/d' /etc/adduser.conf 2>/dev/null || true
+    echo 'NAME_REGEX="^[a-z_][-a-z0-9_]*\$?"' >> /etc/adduser.conf
+    ok "NAME_REGEX patched in /etc/adduser.conf (allows _crd_network)"
+else
+    echo 'NAME_REGEX="^[a-z_][-a-z0-9_]*\$?"' > /etc/adduser.conf
+    ok "adduser.conf created with permissive NAME_REGEX"
+fi
+
+if ! getent group '_crd_network' >/dev/null 2>&1; then
+    addgroup --system '_crd_network' 2>/dev/null \
+        && ok "_crd_network group pre-created" \
+        || warn "_crd_network group pre-create failed (non-fatal)"
+fi
+
+if ! id '_crd_network' >/dev/null 2>&1; then
+    adduser --system --ingroup '_crd_network' --no-create-home '_crd_network' 2>/dev/null \
+        && ok "_crd_network user pre-created" \
+        || warn "_crd_network user pre-create failed (non-fatal)"
+fi
+
+ok "Pre-flight complete — dpkg cascade prevention active"
+
+# =============================================================================
 # STEP 1: BASE PACKAGES
-# zstd MUST be installed first — Ollama installer silently fails without it.
+# zstd MUST be first — Ollama installer silently fails without it.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -159,9 +213,8 @@ ok "Base packages + zstd installed"
 
 # =============================================================================
 # STEP 2: CHROME REMOTE DESKTOP
-# Primary zero-trust access method. Works via outbound connection only —
-# no open inbound ports required. Google only ships amd64.
-# On arm64: KasmVNC (:3000) is the primary access method.
+# Primary zero-trust access method. Google only ships amd64.
+# NAME_REGEX fix in STEP 0 ensures this installs without poisoning dpkg.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -177,9 +230,9 @@ if [ "${ARCH}" = "amd64" ]; then
         || warn "Chrome RDP download failed"
 
     if [ -f "${CRD_DEB}" ]; then
-        dpkg -i "${CRD_DEB}" 2>/dev/null || true
-        apt-get install -y -f 2>/dev/null || true
-        ok "Chrome Remote Desktop installed"
+        dpkg --force-bad-name -i "${CRD_DEB}" 2>/dev/null || true
+        clear_dpkg_errors
+        ok "Chrome Remote Desktop installed (dpkg state cleared)"
     fi
 else
     warn "Chrome Remote Desktop is amd64 only — skipped on ${ARCH}"
@@ -188,9 +241,6 @@ fi
 
 # =============================================================================
 # STEP 3: GITHUB DESKTOP
-# shiftkey Linux fork. Primary: APT repo. Fallback: direct .deb.
-# The shiftkey GPG/APT step can fail in some VPN/container network environments
-# due to TLS certificate issues. We try twice then fall back to direct download.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -199,7 +249,6 @@ log "─────────────────────────
 
 GH_DESKTOP_OK=false
 
-# Primary: shiftkey APT repo
 if retry 2 5 bash -c '
     wget -qO - https://apt.packages.shiftkey.dev/gpg.key \
         | gpg --dearmor \
@@ -213,14 +262,13 @@ if retry 2 5 bash -c '
     ok "GitHub Desktop installed via shiftkey APT"
 fi
 
-# Fallback: direct .deb download (amd64 only)
 if [ "${GH_DESKTOP_OK}" = "false" ] && [ "${ARCH}" = "amd64" ]; then
     warn "shiftkey APT failed — trying direct .deb fallback"
     retry 3 5 wget -q \
         "https://github.com/shiftkey/desktop/releases/download/release-3.3.9-linux1/GitHubDesktop-linux-amd64-3.3.9-linux1.deb" \
         -O /tmp/github-desktop.deb \
-        && dpkg -i /tmp/github-desktop.deb 2>/dev/null || true \
-        && apt-get install -y -f 2>/dev/null || true \
+        && dpkg --force-bad-name -i /tmp/github-desktop.deb 2>/dev/null || true \
+        && clear_dpkg_errors \
         && GH_DESKTOP_OK=true \
         && ok "GitHub Desktop installed via direct .deb" \
         || warn "GitHub Desktop direct .deb also failed — non-fatal"
@@ -231,7 +279,6 @@ fi
 
 # =============================================================================
 # STEP 4: GITKRAKEN
-# Visual Git client. amd64 deb only. arm64 has no official package.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -247,8 +294,7 @@ if [ "${ARCH}" = "amd64" ]; then
 
     if [ -f /tmp/gitkraken-amd64.deb ]; then
         dpkg -i /tmp/gitkraken-amd64.deb 2>/dev/null || true
-        apt-get install -y -f 2>/dev/null || true
-        apt-get upgrade -y --fix-broken 2>/dev/null || true
+        clear_dpkg_errors
         ok "GitKraken installed"
         rm -f /tmp/gitkraken-amd64.deb
     fi
@@ -259,24 +305,24 @@ fi
 # =============================================================================
 # STEP 5: KVM / QEMU / VIRT-MANAGER
 #
-# PACKAGE NAMING NOTE (Ubuntu 22.04+):
-#   ubuntu 22.04 (jammy):   qemu-kvm is a direct package
-#   ubuntu 24.04 (noble):   qemu-kvm is a metapackage → qemu-system-x86
-#   ubuntu 25.04 (resolute):qemu-kvm is VIRTUAL — must use qemu-system-x86
+# Package naming varies by Ubuntu version:
+#   Ubuntu 20.04 (focal):   qemu-kvm is a real package
+#   Ubuntu 22.04 (jammy):   qemu-kvm is a real package
+#   Ubuntu 24.04 (noble):   qemu-kvm is a metapackage → qemu-system-x86
+#   Ubuntu 25.04+:          qemu-kvm may be virtual — use qemu-system-x86
 #
-# We install both the old and new name so it works across Ubuntu versions.
-# || true ensures we never fail on virtual package name mismatches.
+# We install both names with fallback so it works across Ubuntu versions.
 #
-# KVM IS RUNTIME-ONLY: /dev/kvm is not available during docker build.
-# The probe below will find it missing at build time and note Tier 2 mode.
-# At runtime with --privileged -v /dev:/dev, Tier 1 is activated.
+# KVM IS RUNTIME-ONLY:
+#   /dev/kvm is not available during docker build — Tier 2 in log is CORRECT.
+#   At runtime with --privileged -v /dev:/dev, Tier 1 activates.
+#   libvirtd and virtlogd are registered as s6 services (STEP 16) for runtime.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
 log "STEP 5: KVM + QEMU + virt-manager"
 log "─────────────────────────────────────────────────────"
 
-# Install the full virtualization stack — works across Ubuntu 22.04–25.04
 apt-get install -y \
     qemu-kvm qemu-system qemu-system-x86 \
     cpu-checker \
@@ -286,7 +332,7 @@ apt-get install -y \
     ovmf \
     2>/dev/null || \
 apt-get install -y \
-    qemu-system-x86 qemu-system qemu-system-x86-hwe \
+    qemu-system-x86 qemu-system \
     cpu-checker \
     virt-manager \
     libvirt-daemon-system libvirt-clients \
@@ -295,30 +341,27 @@ apt-get install -y \
     2>/dev/null || \
 warn "KVM/QEMU install had errors — best-effort result"
 
-apt-get install -y -f 2>/dev/null || true
+clear_dpkg_errors
 
-# Start libvirt daemons in background
-# These will fail silently during build (expected) and start properly at runtime
+# These background starts fail silently during build (expected)
+# s6 services in STEP 16 handle runtime startup properly
 /usr/sbin/libvirtd &>/dev/null & disown 2>/dev/null || true
 /usr/sbin/virtlogd &>/dev/null & disown 2>/dev/null || true
 
-# Group membership for abc
 usermod -aG kvm abc 2>/dev/null || true
 usermod -aG libvirt abc 2>/dev/null || true
 
-# KVM probe — announces what's available
 log ""
 log "  ── VIRTUALIZATION PROBE ──"
 if [ -e /dev/kvm ]; then
     chown root:kvm /dev/kvm 2>/dev/null || true
     chmod 660 /dev/kvm 2>/dev/null || true
-    log "  ✓ /dev/kvm present → Tier 1: HARDWARE ACCELERATION (KVM native)"
+    log "  ✓ /dev/kvm present → Tier 1: HARDWARE ACCELERATION"
     command -v kvm-ok >/dev/null 2>&1 && log "  kvm-ok: $(kvm-ok 2>&1 | head -1)"
     VIRT_TIER="1-kvm"
 else
-    log "  ⚠ /dev/kvm not present → Tier 2: QEMU TCG software emulation"
-    log "    (normal during docker build — KVM activates at runtime)"
-    log "    To enable Tier 1: docker run --privileged -v /dev:/dev ..."
+    log "  ⚠ /dev/kvm absent → Tier 2: QEMU TCG (expected during docker build)"
+    log "    Runtime: docker run --privileged -v /dev:/dev to activate Tier 1"
     VIRT_TIER="2-tcg"
 fi
 log "  ──────────────────────────"
@@ -328,7 +371,11 @@ ok "KVM/QEMU/virt-manager setup complete (tier: ${VIRT_TIER})"
 
 # =============================================================================
 # STEP 6: OLLAMA LLM RUNTIME
-# Requires zstd (Step 1). Serves inference at localhost:11434.
+#
+# Installed via curl installer. At build time, starts as background process
+# (harmless, does not persist in layer). At runtime, s6 service registered
+# in STEP 16 starts "ollama serve" as a supervised longrun service.
+# Serves at localhost:11434 inside the container.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -340,37 +387,35 @@ if command -v ollama >/dev/null 2>&1; then
 else
     retry 3 10 bash -c 'curl -fsSL https://ollama.com/install.sh | sh' \
         && ok "Ollama installed" \
-        || warn "Ollama install failed — install manually: curl -fsSL https://ollama.com/install.sh | sh"
+        || warn "Ollama install failed — install manually post-deploy"
 fi
 
-apt-get install -y -f 2>/dev/null || true
+clear_dpkg_errors
+# Background start at build time — harmless, s6 handles runtime properly
 ollama serve &>/dev/null & disown 2>/dev/null || true
-ok "Ollama serve started (background, localhost:11434)"
+ok "Ollama serve registered (s6 runs this at container start — localhost:11434)"
 
 # =============================================================================
 # STEP 7: CREATIVE SUITE
-# Blender, OBS Studio, LibreOffice are MANDATORY (explicitly required).
-# OBS: Use obsproject PPA for latest version vs stale Ubuntu archive.
-# Blender: apt first, snap fallback.
+# Blender, OBS Studio, LibreOffice, GIMP, Inkscape, Audacity, Kdenlive
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
-log "STEP 7: Creative Suite (Blender, OBS, LibreOffice...)"
+log "STEP 7: Creative Suite"
 log "─────────────────────────────────────────────────────"
 
-# LibreOffice — full suite
 retry 3 5 apt-get install -y libreoffice \
     && ok "LibreOffice installed" \
     || warn "LibreOffice install failed"
+clear_dpkg_errors
 
-# OBS Studio — add official PPA for current version
 add-apt-repository -y ppa:obsproject/obs-studio 2>/dev/null || true
 apt-get update -qq 2>/dev/null || true
 retry 3 5 apt-get install -y obs-studio \
     && ok "OBS Studio installed" \
     || warn "OBS Studio install failed"
+clear_dpkg_errors
 
-# Blender — apt, then snap fallback
 retry 3 5 apt-get install -y blender \
     && ok "Blender installed" \
     || {
@@ -379,19 +424,18 @@ retry 3 5 apt-get install -y blender \
             && ok "Blender installed via snap" \
             || warn "Blender install failed completely"
     }
+clear_dpkg_errors
 
-# Additional creative tools
 retry 3 5 apt-get install -y \
     inkscape gimp audacity kdenlive \
     && ok "Inkscape, GIMP, Audacity, Kdenlive installed" \
     || warn "Some creative tools failed"
+clear_dpkg_errors
 
-ok "Creative suite installation complete"
+ok "Creative suite complete"
 
 # =============================================================================
 # STEP 8: VISUAL STUDIO CODE
-# Uses the Microsoft APT repo via the official setup script.
-# DEBIAN_FRONTEND=noninteractive prevents interactive "Continue? [Y/n]" prompts.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -409,42 +453,37 @@ else
         || warn "VS Code install failed"
     rm -f /tmp/vscode-install.sh
 fi
+clear_dpkg_errors
 
 # =============================================================================
 # STEP 9: DESKTOP APPLICATIONS
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
-log "STEP 9: Desktop apps (Terminator, Firefox, gdebi...)"
+log "STEP 9: Desktop apps"
 log "─────────────────────────────────────────────────────"
 
 retry 3 5 apt-get install -y \
-    terminator \
-    firefox \
-    gdebi \
-    plasma-discover \
-    supervisor \
+    terminator firefox gdebi plasma-discover supervisor \
     || warn "Some desktop apps failed"
-
+clear_dpkg_errors
 ok "Desktop apps installed"
 
 # =============================================================================
 # STEP 10: DEVSECOPS TOOLCHAIN
-# Dagger, Zarf (multi-arch), K9s, Lazydocker, DEV/SEC/OPS appinator.
+# Dagger, Zarf, K9s, Lazydocker, DEV/SEC/OPS appinator
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
 log "STEP 10: DevSecOps toolchain"
 log "─────────────────────────────────────────────────────"
 
-# Dagger CI
 if ! command -v dagger >/dev/null 2>&1; then
     retry 2 5 bash -c 'curl -fsSL https://dl.dagger.io/dagger/install.sh | BIN_DIR=/usr/local/bin sh' \
         && ok "Dagger CI installed" \
         || warn "Dagger install failed"
 fi
 
-# Zarf (multi-arch binary)
 if ! command -v zarf >/dev/null 2>&1; then
     ZARF_VER=$(curl -sIX HEAD https://github.com/zarf-dev/zarf/releases/latest \
         | grep -i '^location:' | grep -Eo 'v[0-9]+\.[0-9]+\.[0-9]+' 2>/dev/null || echo "")
@@ -458,7 +497,6 @@ if ! command -v zarf >/dev/null 2>&1; then
     fi
 fi
 
-# K9s Kubernetes TUI
 if ! command -v k9s >/dev/null 2>&1; then
     K9S_VER=$(curl -s https://api.github.com/repos/derailed/k9s/releases/latest \
         | grep '"tag_name"' | cut -d'"' -f4 2>/dev/null || echo "")
@@ -471,7 +509,6 @@ if ! command -v k9s >/dev/null 2>&1; then
     fi
 fi
 
-# Lazydocker Docker TUI
 if ! command -v lazydocker >/dev/null 2>&1; then
     retry 3 5 curl -fsSL \
         https://raw.githubusercontent.com/jesseduffield/lazydocker/master/scripts/install_update_linux.sh \
@@ -480,7 +517,6 @@ if ! command -v lazydocker >/dev/null 2>&1; then
         || warn "Lazydocker install failed"
 fi
 
-# DEV/SEC/OPS appinator — writes DEV, DEV-rebuild, DEV-restore etc to /usr/local/bin
 retry 3 5 wget -q \
     "https://raw.githubusercontent.com/Underground-Ops/underground-nexus/refs/heads/main/Dagger%20CI/Scripts/nexus-devsecops-appinator.sh" \
     -O /tmp/appinator.sh \
@@ -506,18 +542,6 @@ ok "SSH configured"
 
 # =============================================================================
 # STEP 12: USER SETUP
-#
-# LINUXSERVER CONTAINERS:
-#   Do NOT use usermod to change UID. The linuxserver /init process handles
-#   UID mapping at container start via -e PUID=1000 -e PGID=1000.
-#   abc's home is /config (the mounted volume).
-#   We only ensure group memberships and sudo/password are set.
-#
-# BARE METAL / NON-LINUXSERVER:
-#   Create user abc at UID 1000 if it does not exist.
-#   abc's home is /home/abc.
-#   Set UID to 1000 if abc exists at a different UID.
-#
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -527,11 +551,9 @@ log "─────────────────────────
 if [ "${LINUXSERVER_MODE}" = "true" ]; then
     log "Linuxserver mode — UID set at runtime via -e PUID=1000 -e PGID=1000"
     log "abc home: /config"
-    # abc already exists in linuxserver base — just ensure groups and password
 else
-    # Bare metal / non-linuxserver container
     if ! id -u abc >/dev/null 2>&1; then
-        log "Creating user abc (UID 1000, home: ${ABC_HOME})"
+        log "Creating user abc (UID 1000)"
         useradd -m -u 1000 -d "${ABC_HOME}" -s /bin/bash abc 2>/dev/null \
             && ok "User abc created" \
             || warn "useradd failed"
@@ -544,7 +566,6 @@ else
             find / -user "${CURRENT_UID}" \
                 -not -path "/proc/*" -not -path "/sys/*" -not -path "/dev/*" \
                 -exec chown -h abc: {} + 2>/dev/null || true
-            ok "abc UID corrected to 1000"
         else
             ok "abc already UID 1000"
         fi
@@ -552,16 +573,14 @@ else
     mkdir -p "${ABC_HOME}"
 fi
 
-# Group memberships (safe in all modes)
 for GRP in sudo docker kvm libvirt; do
     getent group "${GRP}" >/dev/null 2>&1 && usermod -aG "${GRP}" abc 2>/dev/null || true
 done
 
-# Password — sovereign standard
+# Password — sovereign standard (updated from original notiaPoint1)
 echo "abc:sovereign" | chpasswd 2>/dev/null || true
 ok "Password set: sovereign"
 
-# Sudoers — idempotent
 cp -f /etc/sudoers /root/sudoers.bak 2>/dev/null || true
 grep -q "abc ALL=(ALL) NOPASSWD: ALL" /etc/sudoers 2>/dev/null || \
     echo "abc ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
@@ -580,90 +599,64 @@ log "STEP 13: /nexus-bucket + Underground Nexus repo"
 log "─────────────────────────────────────────────────────"
 
 mkdir -p /nexus-bucket
-chown -R abc:abc /nexus-bucket
+id abc >/dev/null 2>&1 && chown -R abc:abc /nexus-bucket || \
+    chown -R 1000:1000 /nexus-bucket 2>/dev/null || true
 chmod 755 /nexus-bucket
 
 if [ ! -d "/nexus-bucket/underground-nexus/.git" ]; then
     retry 3 10 git clone \
         https://github.com/Underground-Ops/underground-nexus.git \
         /nexus-bucket/underground-nexus \
-        && ok "Underground Nexus repo cloned to /nexus-bucket" \
-        || warn "git clone failed — network issue or air-gap mode"
+        && ok "Underground Nexus repo cloned" \
+        || warn "git clone failed — will retry at container start via cont-init"
 else
     git -C /nexus-bucket/underground-nexus pull --rebase 2>/dev/null || true
     ok "Underground Nexus repo updated"
 fi
 
-chown -R abc:abc /nexus-bucket 2>/dev/null || true
+id abc >/dev/null 2>&1 && chown -R abc:abc /nexus-bucket 2>/dev/null || \
+    chown -R 1000:1000 /nexus-bucket 2>/dev/null || true
 
 # =============================================================================
 # STEP 14: WALLPAPERS — THREE-IMAGE ASPECT-RATIO SYSTEM
-#
-# Exactly mirrors the original nexus0.sh wallpaper logic.
-# Three different image files → three aspect ratio families.
-# KDE auto-selects closest resolution match at display time.
-#
-# sea-space-jelly-highres → all widescreen landscape (1280x800 to 2560x1440)
-# sea-space-jelly         → standard / near-square (1280x1024, 1024x768)
-# moon-jelly              → portrait / vertical (1080x1920, 360x720, 720x1440)
-#
-# mkdir -p guards against linuxserver webtop variants that don't ship KubuntuLight.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
-log "STEP 14: Wallpapers (three-image aspect-ratio system)"
+log "STEP 14: Wallpapers"
 log "─────────────────────────────────────────────────────"
 
 WALLPAPER_BASE="https://raw.githubusercontent.com/Underground-Ops/underground-nexus/main/Wallpapers"
 WALLPAPER_DIR="/usr/share/wallpapers/KubuntuLight/contents/images"
-
 mkdir -p "${WALLPAPER_DIR}"
 cd "${WALLPAPER_DIR}" || warn "Cannot cd to ${WALLPAPER_DIR}"
 
-# IMAGE 1 — sea-space-jelly-highres → all widescreen landscape sizes
 retry 3 5 wget -q "${WALLPAPER_BASE}/nexus0-sea-space-jelly-highres.jpg" \
-    -O "1440x900.jpg" \
-    && ok "sea-space-jelly-highres.jpg downloaded (1440x900 master)" \
-    || warn "highres wallpaper download failed"
-
+    -O "1440x900.jpg" && ok "Highres wallpaper downloaded" || warn "Highres wallpaper failed"
 if [ -f "1440x900.jpg" ]; then
     for SIZE in 1280x800 1366x768 1600x1200 1680x1050 1920x1080 1920x1200 2560x1440; do
         rm -f "${SIZE}.jpg" "${SIZE}.png" 2>/dev/null || true
         cp "1440x900.jpg" "${SIZE}.jpg"
     done
-    ok "Widescreen wallpapers set (1280x800 → 2560x1440)"
 fi
 
-# IMAGE 2 — sea-space-jelly → standard/square sizes
 retry 3 5 wget -q "${WALLPAPER_BASE}/nexus0-sea-space-jelly.jpg" \
-    -O "1280x1024.jpg" \
-    && ok "sea-space-jelly.jpg downloaded (1280x1024 master)" \
-    || warn "standard wallpaper download failed"
-
+    -O "1280x1024.jpg" && ok "Standard wallpaper downloaded" || warn "Standard wallpaper failed"
 if [ -f "1280x1024.jpg" ]; then
     rm -f "1024x768.jpg" "1024x768.png" 2>/dev/null || true
     cp "1280x1024.jpg" "1024x768.jpg"
-    ok "Square wallpapers set (1280x1024, 1024x768)"
 fi
 
-# IMAGE 3 — moon-jelly → portrait/vertical sizes
 retry 3 5 wget -q "${WALLPAPER_BASE}/nexus0-moon-jelly.jpg" \
-    -O "1080x1920.jpg" \
-    && ok "moon-jelly.jpg downloaded (1080x1920 master)" \
-    || warn "portrait wallpaper download failed"
-
+    -O "1080x1920.jpg" && ok "Portrait wallpaper downloaded" || warn "Portrait wallpaper failed"
 if [ -f "1080x1920.jpg" ]; then
     for SIZE in 360x720 720x1440; do
         rm -f "${SIZE}.jpg" "${SIZE}.png" 2>/dev/null || true
         cp "1080x1920.jpg" "${SIZE}.jpg"
     done
-    ok "Portrait wallpapers set (1080x1920, 360x720, 720x1440)"
 fi
 
-# Remove all default PNG wallpapers so KDE uses our JPGs
 rm -rf ./*.png 2>/dev/null || true
-ok "Default PNG wallpapers removed — three-image system active"
-
+ok "Wallpaper system active"
 cd / || true
 
 # =============================================================================
@@ -677,10 +670,9 @@ log "─────────────────────────
 retry 3 5 wget -q \
     "https://raw.githubusercontent.com/Underground-Ops/underground-nexus/main/Production%20Artifacts/Wordpress/nexus-creator-vault/nexus-creator-vault-control-panel.html" \
     -O /nexus-creator-vault-control-panel.html \
-    && ok "Control panel → /nexus-creator-vault-control-panel.html" \
+    && ok "Control panel downloaded" \
     || warn "Control panel download failed"
 
-# Place on desktops (both /config and /home/abc for compatibility)
 mkdir -p /config/Desktop /home/abc/Desktop 2>/dev/null || true
 cp -f /nexus-creator-vault-control-panel.html \
     /config/Desktop/nexus-creator-vault-control-panel.html 2>/dev/null || true
@@ -689,8 +681,8 @@ cp -f /nexus-creator-vault-control-panel.html \
 
 # =============================================================================
 # STEP 16: DISPLAY MODE CONFIGURATION
-# Container:   Register s6-overlay supervised services (no systemd)
-# Bare metal:  Configure SDDM auto-login + systemd unit for sovereign-installer
+# Container mode: register s6-overlay supervised services
+# Bare metal mode: configure SDDM auto-login + systemd unit
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -701,7 +693,6 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
 
     log "CONTAINER MODE — s6-overlay service registration"
 
-    # Ensure s6 directories exist
     mkdir -p /etc/s6-overlay/s6-rc.d /etc/s6-overlay/cont-init.d
 
     # s6: libvirtd
@@ -716,19 +707,19 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
         > /etc/s6-overlay/s6-rc.d/virtlogd/run
     echo "longrun" > /etc/s6-overlay/s6-rc.d/virtlogd/type
 
-    # s6: ollama
+    # s6: ollama (LLM inference — localhost:11434)
     mkdir -p /etc/s6-overlay/s6-rc.d/ollama
     printf '#!/usr/bin/with-contenv bash\nexec ollama serve\n' \
         > /etc/s6-overlay/s6-rc.d/ollama/run
     echo "longrun" > /etc/s6-overlay/s6-rc.d/ollama/type
 
-    # s6: chrome-remote-desktop (amd64; arm64 exits cleanly)
+    # s6: chrome-remote-desktop (amd64; exits cleanly on arm64)
     mkdir -p /etc/s6-overlay/s6-rc.d/chrome-remote-desktop
     printf '#!/usr/bin/with-contenv bash\n[ -f /opt/google/chrome-remote-desktop/chrome-remote-desktop ] || exit 0\nexec s6-setuidgid abc /opt/google/chrome-remote-desktop/chrome-remote-desktop --start\n' \
         > /etc/s6-overlay/s6-rc.d/chrome-remote-desktop/run
     echo "longrun" > /etc/s6-overlay/s6-rc.d/chrome-remote-desktop/type
 
-    # s6: supervisor (only if installed)
+    # s6: supervisor
     if command -v supervisord >/dev/null 2>&1; then
         mkdir -p /etc/s6-overlay/s6-rc.d/supervisor
         printf '#!/usr/bin/with-contenv bash\nexec /usr/bin/supervisord -n -c /etc/supervisor/supervisord.conf\n' \
@@ -736,7 +727,6 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
         echo "longrun" > /etc/s6-overlay/s6-rc.d/supervisor/type
     fi
 
-    # Enable in user bundle
     mkdir -p /etc/s6-overlay/s6-rc.d/user/contents.d
     for SVC in libvirtd virtlogd ollama chrome-remote-desktop; do
         touch "/etc/s6-overlay/s6-rc.d/user/contents.d/${SVC}"
@@ -744,8 +734,7 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
     command -v supervisord >/dev/null 2>&1 && \
         touch /etc/s6-overlay/s6-rc.d/user/contents.d/supervisor || true
 
-    # cont-init: KVM permissions at container start
-    # (runs after /init, so /dev/kvm is mounted from host by then)
+    # cont-init: KVM permissions (runs after /dev is mounted at runtime)
     printf '#!/usr/bin/with-contenv bash\nusermod -aG kvm abc 2>/dev/null||true\nusermod -aG libvirt abc 2>/dev/null||true\nchown root:kvm /dev/kvm 2>/dev/null||true\nchmod 660 /dev/kvm 2>/dev/null||true\n' \
         > /etc/s6-overlay/cont-init.d/01-kvm-permissions
     chmod +x /etc/s6-overlay/cont-init.d/01-kvm-permissions
@@ -764,24 +753,16 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
 
     log ""
     log "  ── ZERO TRUST ACCESS ──────────────────────────────"
-    log "  Primary:   KasmVNC → http://<host>:1050"
+    log "  Primary:   KasmVNC → http://<host>:1050 (prod) or :2500 (test)"
     log "  Secondary: Chrome RDP → remotedesktop.google.com/access"
-    log "  Tertiary:  SSH → ssh abc@<container-ip>  (password: sovereign)"
-    log "  ──────────────────────────────────────────────────"
-    log "  Chrome RDP setup (run as abc, NOT root, NO sudo):"
-    log "    su - abc"
-    log "    DISPLAY= /opt/google/chrome-remote-desktop/start-host \\"
-    log "      --code=\"<YOUR-AUTHORIZE-CODE>\" \\"
-    log "      --redirect-url=\"https://remotedesktop.google.com/_/oauthredirect\" \\"
-    log "      --name=\$(hostname)"
-    log "  Get authorize code from: https://remotedesktop.google.com/headless"
+    log "  Tertiary:  SSH → ssh abc@<ip>  (password: sovereign)"
     log "  ──────────────────────────────────────────────────"
 
     ok "Container s6 services registered"
 
 else
 
-    log "BARE METAL / VM MODE (DEV-metal path)"
+    log "BARE METAL / VM MODE"
 
     mkdir -p /etc/sddm.conf.d
     cat > /etc/sddm.conf.d/autologin.conf << 'SDDMEOF'
@@ -790,36 +771,14 @@ User=abc
 Session=plasma
 Relogin=false
 SDDMEOF
-    ok "SDDM auto-login set (abc → plasma)"
+    ok "SDDM auto-login set"
 
     if command -v systemctl >/dev/null 2>&1; then
         systemctl enable sddm 2>/dev/null || true
         systemctl enable libvirtd 2>/dev/null || true
     fi
 
-    # First-boot sovereign-installer service
-    cat > /etc/systemd/system/nexus-first-boot.service << 'SVCEOF'
-[Unit]
-Description=Nexus OS First Boot — Sovereign Installer
-After=network-online.target docker.service
-ConditionPathExists=!/var/lib/nexus-first-boot-done
-
-[Service]
-Type=oneshot
-User=root
-ExecStart=/bin/bash -c '/usr/local/bin/sovereign-installer && touch /var/lib/nexus-first-boot-done'
-RemainAfterExit=yes
-
-[Install]
-WantedBy=multi-user.target
-SVCEOF
-
-    command -v systemctl >/dev/null 2>&1 && {
-        systemctl daemon-reload 2>/dev/null || true
-        systemctl enable nexus-first-boot.service 2>/dev/null || true
-    }
-
-    ok "Bare metal / DEV-metal mode ready"
+    ok "Bare metal mode ready"
 fi
 
 # =============================================================================
@@ -830,14 +789,19 @@ log "─────────────────────────
 log "STEP 17: Final cleanup"
 log "─────────────────────────────────────────────────────"
 
-apt-get install -y -f 2>/dev/null || true
+clear_dpkg_errors
 apt-get upgrade -y --fix-broken 2>/dev/null || true
 apt-get clean 2>/dev/null || true
 rm -rf /var/lib/apt/lists/* 2>/dev/null || true
 
-chown -R abc:abc /nexus-bucket 2>/dev/null || true
-[ "${LINUXSERVER_MODE}" = "true" ] && chown -R abc:abc /config 2>/dev/null || true
-[ -d /home/abc ] && chown -R abc:abc /home/abc 2>/dev/null || true
+if id abc >/dev/null 2>&1; then
+    chown -R abc:abc /nexus-bucket 2>/dev/null || true
+    [ "${LINUXSERVER_MODE}" = "true" ] && chown -R abc:abc /config 2>/dev/null || true
+    [ -d /home/abc ] && chown -R abc:abc /home/abc 2>/dev/null || true
+else
+    chown -R 1000:1000 /nexus-bucket 2>/dev/null || true
+    warn "abc user not yet created (linuxserver creates at runtime — normal)"
+fi
 
 ok "Cleanup done"
 
@@ -847,7 +811,7 @@ ok "Cleanup done"
 
 log ""
 log "═══════════════════════════════════════════════════"
-log "nexus0.sh v5 COMPLETE"
+log "nexus0.sh v5.1 COMPLETE"
 log "═══════════════════════════════════════════════════"
 log "Mode:       $([ "${CONTAINER_MODE}" = "true" ] && echo "CONTAINER" || echo "BARE METAL")"
 log "LinuxSrv:   ${LINUXSERVER_MODE}"
