@@ -124,6 +124,8 @@ ok "Base packages installed"
 
 # =============================================================================
 # STEP 2: CHROME REMOTE DESKTOP (installed, NOT s6 service)
+# amd64 only — arm64 is skipped (no CRD binary available for arm).
+# Verifies CRD is cleanly installed; installs or repairs if missing/broken.
 # =============================================================================
 
 log "STEP 2: Chrome Remote Desktop"
@@ -134,27 +136,35 @@ if [ "${ARCH}" = "amd64" ]; then
         python3 python3-packaging python3-xdg psmisc xdg-utils \
         2>/dev/null || true
 
-    CRD_DEB="/tmp/chrome-remote-desktop_current_amd64.deb"
-    retry 3 10 wget -q --timeout=60 \
-        "https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb" \
-        -O "${CRD_DEB}" && ok "CRD downloaded" || warn "CRD download failed"
+    # Check if CRD is already cleanly installed
+    if dpkg -l chrome-remote-desktop 2>/dev/null | grep -q "^ii"; then
+        ok "Chrome Remote Desktop already installed and healthy — skipping download"
+    else
+        # Not installed or in broken state — download and install
+        CRD_DEB="/tmp/chrome-remote-desktop_current_amd64.deb"
+        retry 3 10 wget -q --timeout=60 \
+            "https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb" \
+            -O "${CRD_DEB}" && ok "CRD downloaded" || warn "CRD download failed"
 
-    if [ -f "${CRD_DEB}" ] && [ -s "${CRD_DEB}" ]; then
-        dpkg --force-bad-name --force-depends --force-confold -i "${CRD_DEB}" 2>/dev/null || true
-        apt-get install -f -y 2>/dev/null || true
-        dpkg --configure --force-confold -a 2>/dev/null || true
-        apt-get install -f -y 2>/dev/null || true
-        if dpkg -l chrome-remote-desktop 2>/dev/null | grep -q "^iF"; then
-            warn "CRD postinst failed — purging to prevent cascade"
-            dpkg --purge --force-all chrome-remote-desktop 2>/dev/null || true
-            clear_dpkg_errors
+        if [ -f "${CRD_DEB}" ] && [ -s "${CRD_DEB}" ]; then
+            dpkg --force-bad-name --force-depends --force-confold -i "${CRD_DEB}" 2>/dev/null || true
+            apt-get install -f -y 2>/dev/null || true
+            dpkg --configure --force-confold -a 2>/dev/null || true
+            apt-get install -f -y 2>/dev/null || true
+            if dpkg -l chrome-remote-desktop 2>/dev/null | grep -q "^iF"; then
+                warn "CRD postinst failed — purging to prevent cascade"
+                dpkg --purge --force-all chrome-remote-desktop 2>/dev/null || true
+                clear_dpkg_errors
+            else
+                ok "Chrome Remote Desktop installed (NOT s6 service — user-configured post-deploy)"
+            fi
+            rm -f "${CRD_DEB}"
         else
-            ok "Chrome Remote Desktop installed (NOT s6 service — user-configured post-deploy)"
+            warn "CRD download failed — skipping (non-fatal)"
         fi
-        rm -f "${CRD_DEB}"
     fi
 else
-    warn "CRD amd64 only"
+    warn "Chrome Remote Desktop: arm64 not supported — skipped"
 fi
 
 # =============================================================================
@@ -481,7 +491,6 @@ retry 3 5 wget -q --timeout=60 \
     -O /nexus-creator-vault-control-panel.html \
     && ok "Control panel at /nexus-creator-vault-control-panel.html" \
     || warn "Control panel download failed"
-log "  Desktop copy deferred to runtime (/custom-cont-init.d/)"
 
 # =============================================================================
 # STEP 16: S6 SERVICE DEFINITIONS + /custom-cont-init.d RUNTIME HOOK
@@ -490,8 +499,8 @@ log "  Desktop copy deferred to runtime (/custom-cont-init.d/)"
 #
 # In CONTAINER+LINUXSERVER mode this step:
 #   A) Writes /custom-cont-init.d/01-nexus-setup.sh — runs at container start
-#      AFTER /config is created, BEFORE desktop. Handles /config/Desktop,
-#      /nexus-bucket ownership, KVM permissions, git pull.
+#      AFTER /config is created, BEFORE desktop. Handles /nexus-bucket
+#      ownership, KVM permissions, git pull. No files placed in /config.
 #   B) Writes s6 service run/type files for libvirtd, virtlogd, ollama.
 #      Each service checks its binary exists before exec (graceful exit).
 #
@@ -541,16 +550,6 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
     printf '# Nexus Creator Vault runtime setup — runs after /config exists\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
     printf 'echo "[nexus-init] Nexus Creator Vault v5.5 runtime setup"\n' \
-        >> /custom-cont-init.d/01-nexus-setup.sh
-    printf 'mkdir -p /config/Desktop\n' \
-        >> /custom-cont-init.d/01-nexus-setup.sh
-    printf 'chown abc:abc /config/Desktop 2>/dev/null || chown 1000:1000 /config/Desktop || true\n' \
-        >> /custom-cont-init.d/01-nexus-setup.sh
-    printf 'echo "[nexus-init] /config/Desktop ready"\n' \
-        >> /custom-cont-init.d/01-nexus-setup.sh
-    printf '[ -f /nexus-creator-vault-control-panel.html ] && cp -f /nexus-creator-vault-control-panel.html /config/Desktop/ && chown abc:abc /config/Desktop/nexus-creator-vault-control-panel.html 2>/dev/null || true\n' \
-        >> /custom-cont-init.d/01-nexus-setup.sh
-    printf 'echo "[nexus-init] Control panel copied to Desktop"\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
     printf 'mkdir -p /nexus-bucket\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
@@ -618,7 +617,7 @@ ok "Cleanup done"
 
 log ""
 log "═══════════════════════════════════════════════════"
-log "nexus0.sh v5.4 COMPLETE"
+log "nexus0.sh v5.5 COMPLETE"
 log "═══════════════════════════════════════════════════"
 log "Mode:       $([ "${CONTAINER_MODE}" = "true" ] && echo "CONTAINER" || echo "BARE METAL")"
 log "LinuxSrv:   ${LINUXSERVER_MODE}"
