@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # =============================================================================
-# NEXUS0.SH v5.4 — Pure Package Installer + Runtime Hook Writer
+# NEXUS0.SH v5.5 — Pure Package Installer + Runtime Hook Writer
 # Cloud Underground · Underground Nexus
 # =============================================================================
 #
@@ -35,7 +35,7 @@ warn() { echo "[nexus0] ⚠ $*" | tee -a "${NX_LOG}"; }
 err()  { echo "[nexus0] ✗ $*" | tee -a "${NX_LOG}" >&2; }
 
 log "═══════════════════════════════════════════════════"
-log "nexus0.sh v5.4 — Pure Package Installer"
+log "nexus0.sh v5.5 — Pure Package Installer"
 log "Started: $(date)"
 log "═══════════════════════════════════════════════════"
 
@@ -334,7 +334,11 @@ clear_dpkg_errors
 
 log "STEP 9: Desktop apps"
 
-retry 3 5 apt-get install -y terminator firefox gdebi plasma-discover \
+# NOTE: plasma-discover intentionally excluded.
+# plasma-discover-backend-snap pulls in snapd, which registers system services
+# and interacts with /run/snapd.socket in ways that destabilize KDE startup.
+# gdebi is kept for manual .deb installs from the desktop.
+retry 3 5 apt-get install -y terminator firefox gdebi \
     || warn "Some desktop apps failed"
 clear_dpkg_errors
 ok "Desktop apps installed"
@@ -536,7 +540,7 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
         > /custom-cont-init.d/01-nexus-setup.sh
     printf '# Nexus Creator Vault runtime setup — runs after /config exists\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
-    printf 'echo "[nexus-init] Nexus Creator Vault v5.4 runtime setup"\n' \
+    printf 'echo "[nexus-init] Nexus Creator Vault v5.5 runtime setup"\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
     printf 'mkdir -p /config/Desktop\n' \
         >> /custom-cont-init.d/01-nexus-setup.sh
