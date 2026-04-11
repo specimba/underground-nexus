@@ -1,56 +1,36 @@
 #!/usr/bin/env bash
 # =============================================================================
-# NEXUS0.SH v5.1 — Polymorphic Payload (NAME_REGEX CASCADE FIX)
+# NEXUS0.SH v5.2 — Polymorphic Payload
 # Cloud Underground · Underground Nexus
 # =============================================================================
 #
-# WHAT THIS IS:
-#   Single-script bootstrap for the Underground Nexus ecosystem.
-#   Works on every deployment surface:
-#     • lscr.io/linuxserver/webtop:ubuntu-kde containers (PRIMARY — DEV command)
-#     • Custom Ubuntu/Debian containers with KDE
-#     • Bare-metal Ubuntu 22.04 / 24.04 / 25.04 (DEV-metal path)
-#     • Kubernetes pods
+# v5.2 FIXES (from Hub build log analysis):
 #
-# CORE PHILOSOPHY: THE BULLDOZER
-#   Everything installs unconditionally. Failures are logged and the script
-#   continues. Only the DISPLAY MECHANISM (KasmVNC s6 services vs SDDM)
-#   is conditional on environment detection.
+#   FIX 1 — CRITICAL: s6 crash / ERR_EMPTY_RESPONSE at port 1050/2500
+#     Root cause: Hub BuildKit builds don't always create /.dockerenv, so
+#     CONTAINER_MODE stayed false even though LINUXSERVER_MODE was true.
+#     STEP 16 then ran the BARE METAL branch (SDDM/systemd) instead of
+#     registering s6 services — leaving virtlogd/libvirtd undefined in the
+#     s6 bundle → s6-rc-compile crash → KasmVNC never starts → empty response.
+#     Fix: if LINUXSERVER_MODE=true, force CONTAINER_MODE=true. A linuxserver
+#     container always needs s6 services regardless of /.dockerenv presence.
 #
-# v5.1 CRITICAL FIX — ROOT CAUSE OF CASCADE FAILURES:
-#   Chrome Remote Desktop's postinst script tries to create a system user
-#   named "_crd_network". The default Ubuntu adduser NAME_REGEX rejects
-#   names starting with "_" (underscore). This leaves chrome-remote-desktop
-#   in a HALF-CONFIGURED dpkg state. Every subsequent apt-get call attempts
-#   to re-run the failed postinst, failing again, poisoning ALL subsequent
-#   package installs with "E: Sub-process /usr/bin/dpkg returned an error
-#   code (1)" — even for packages that DID install correctly.
+#   FIX 2 — VS Code (✗ in build log):
+#     Root cause: wget of visual-studio-code.sh from GitHub fails in Hub builds
+#     (network policy or timing). Replace with direct Microsoft APT repo method
+#     (same as the original nexus0-static.sh visual-studio-code.sh script).
+#     This is the canonical, reliable install path for VS Code on Ubuntu.
 #
-#   THE FIX (applied in STEP 0, before any package installs):
-#     1. Patch /etc/adduser.conf to allow underscore-prefixed usernames
-#     2. Pre-create the _crd_network user so postinst finds it and no-ops
-#     3. Use dpkg --force-bad-name during CRD install (belt-and-suspenders)
-#     4. Call clear_dpkg_errors() after every install step
+#   FIX 3 — Chrome RDP (✗ in build log):
+#     Root cause: NAME_REGEX patch runs but Hub's network or dpkg state still
+#     blocks. Add explicit pre-installation of all CRD dependencies, more
+#     aggressive dpkg --force flags, and a post-install dpkg --purge of the
+#     broken half-configured state if it still fails.
 #
-# USER MANAGEMENT:
-#   Containers (linuxserver): Do NOT change UID here. Pass -e PUID=1000
-#     at docker run time. Linuxserver handles UID mapping via /init.
-#     abc's home is /config (linuxserver standard for webtop volumes).
-#   Bare metal / non-linuxserver: abc is created at UID 1000 if not present.
-#     abc's home is /home/abc.
-#
-# KVM INTELLIGENCE:
-#   Always installs QEMU/KVM packages. At runtime, probes /dev/kvm:
-#     • /dev/kvm present  → Tier 1: hardware acceleration (KVM native speed)
-#     • /dev/kvm missing  → Tier 2: QEMU TCG software emulation
-#   KVM is RUNTIME-ONLY — container must use --privileged -v /dev:/dev
-#   This script never fails if KVM is unavailable. It adapts.
-#   During docker build: /dev/kvm is absent → "Tier 2" in log = expected.
-#
-# WALLPAPER SYSTEM (three-image, aspect-ratio responsive):
-#   nexus0-sea-space-jelly-highres.jpg → landscape/widescreen
-#   nexus0-sea-space-jelly.jpg         → standard/square
-#   nexus0-moon-jelly.jpg              → portrait/vertical
+#   FIX 4 — GitHub Desktop (✗ in build log):
+#     Root cause: shiftkey APT cert fails + primary .deb URL also fails in Hub.
+#     Add multiple .deb version fallbacks + wget --no-check-certificate as
+#     last resort. Make the entire step non-fatal (already is, but cleaner).
 #
 # =============================================================================
 
@@ -69,7 +49,7 @@ warn() { echo "[nexus0] ⚠ $*" | tee -a "${NX_LOG}"; }
 err()  { echo "[nexus0] ✗ $*" | tee -a "${NX_LOG}" >&2; }
 
 log "═══════════════════════════════════════════════════"
-log "nexus0.sh v5.1 — Polymorphic Payload (NAME_REGEX FIX)"
+log "nexus0.sh v5.2 — Polymorphic Payload"
 log "Started: $(date)"
 log "═══════════════════════════════════════════════════"
 
@@ -90,11 +70,18 @@ log "Architecture: ${ARCH}"
 
 # =============================================================================
 # ENVIRONMENT DETECTION
+#
+# v5.2 FIX: Hub BuildKit doesn't always write /.dockerenv, so CONTAINER_MODE
+# can be false even inside a Docker build. If LINUXSERVER_MODE is true (s6-overlay
+# present), we FORCE CONTAINER_MODE=true — a linuxserver image always needs s6
+# service registration, never SDDM/systemd. This prevents the bare-metal branch
+# from running and leaving the s6 bundle with undefined service references.
 # =============================================================================
 
 CONTAINER_MODE=false
 LINUXSERVER_MODE=false
 
+# Primary container check
 if [ -f /.dockerenv ]; then
     CONTAINER_MODE=true
     log "/.dockerenv found → CONTAINER MODE"
@@ -103,12 +90,22 @@ elif grep -q 'container=' /proc/1/environ 2>/dev/null; then
     log "container= in PID1 environ → CONTAINER MODE"
 fi
 
+# Linuxserver detection (s6-overlay present)
 if [ -d /run/s6 ] || [ -f /etc/s6-overlay/s6-rc.d/user/type ] || \
    grep -q 'linuxserver' /etc/os-release 2>/dev/null || \
    [ -d /etc/s6-overlay ]; then
     LINUXSERVER_MODE=true
     log "s6-overlay detected → LINUXSERVER MODE"
     log "  User home: /config (abc UID set by PUID at runtime)"
+fi
+
+# v5.2 FIX: Force container mode when linuxserver is detected.
+# Hub BuildKit may not set /.dockerenv but this IS a container build.
+# A linuxserver image must ALWAYS use s6 service registration, never SDDM.
+if [ "${LINUXSERVER_MODE}" = "true" ] && [ "${CONTAINER_MODE}" = "false" ]; then
+    CONTAINER_MODE=true
+    log "v5.2: LINUXSERVER_MODE=true → forcing CONTAINER_MODE=true"
+    log "      (Hub BuildKit may not write /.dockerenv — this is correct behavior)"
 fi
 
 if [ "${CONTAINER_MODE}" = "false" ]; then
@@ -143,8 +140,7 @@ retry() {
 }
 
 # =============================================================================
-# HELPER: Clear broken dpkg state
-# Prevents any half-configured package from cascading to block later installs.
+# clear_dpkg_errors — call after any install that might leave dpkg broken
 # =============================================================================
 
 clear_dpkg_errors() {
@@ -153,46 +149,44 @@ clear_dpkg_errors() {
 }
 
 # =============================================================================
-# STEP 0: PRE-FLIGHT — NAME_REGEX FIX (MUST RUN BEFORE ANY PACKAGE INSTALLS)
+# STEP 0: PRE-FLIGHT — NAME_REGEX FIX
 #
-# Chrome Remote Desktop's postinst creates user "_crd_network".
-# Ubuntu's default adduser NAME_REGEX rejects underscore-prefixed names.
-# Result without this fix: CRD postinst fails → dpkg marks it iF (broken) →
-# every subsequent apt-get re-triggers the broken postinst → ALL installs fail.
-#
-# Fix: patch NAME_REGEX to allow underscore prefix, pre-create _crd_network.
+# Chrome Remote Desktop postinst creates "_crd_network" user.
+# Ubuntu NAME_REGEX rejects underscore-prefix → postinst fails → dpkg cascade.
+# Fix before ANY package installs.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
-log "STEP 0: Pre-flight — NAME_REGEX fix (prevents dpkg cascade)"
+log "STEP 0: Pre-flight — NAME_REGEX + dependency pre-install"
 log "─────────────────────────────────────────────────────"
 
+# Patch adduser NAME_REGEX
 if [ -f /etc/adduser.conf ]; then
     sed -i '/^NAME_REGEX/d' /etc/adduser.conf 2>/dev/null || true
     echo 'NAME_REGEX="^[a-z_][-a-z0-9_]*\$?"' >> /etc/adduser.conf
-    ok "NAME_REGEX patched in /etc/adduser.conf (allows _crd_network)"
+    ok "NAME_REGEX patched (allows _crd_network)"
 else
     echo 'NAME_REGEX="^[a-z_][-a-z0-9_]*\$?"' > /etc/adduser.conf
     ok "adduser.conf created with permissive NAME_REGEX"
 fi
 
+# Pre-create _crd_network so CRD postinst finds it and skips creation
 if ! getent group '_crd_network' >/dev/null 2>&1; then
     addgroup --system '_crd_network' 2>/dev/null \
         && ok "_crd_network group pre-created" \
         || warn "_crd_network group pre-create failed (non-fatal)"
 fi
-
 if ! id '_crd_network' >/dev/null 2>&1; then
     adduser --system --ingroup '_crd_network' --no-create-home '_crd_network' 2>/dev/null \
         && ok "_crd_network user pre-created" \
         || warn "_crd_network user pre-create failed (non-fatal)"
 fi
 
-ok "Pre-flight complete — dpkg cascade prevention active"
+ok "Pre-flight complete"
 
 # =============================================================================
 # STEP 1: BASE PACKAGES
-# zstd MUST be first — Ollama installer silently fails without it.
+# zstd must be first — Ollama installer silently fails without it.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -207,14 +201,17 @@ retry 3 5 apt-get install -y \
     zstd xz-utils \
     software-properties-common \
     iputils-ping \
+    lsb-release \
     || warn "Some base packages failed — continuing"
 
 ok "Base packages + zstd installed"
 
 # =============================================================================
 # STEP 2: CHROME REMOTE DESKTOP
-# Primary zero-trust access method. Google only ships amd64.
-# NAME_REGEX fix in STEP 0 ensures this installs without poisoning dpkg.
+#
+# v5.2: Pre-install ALL known CRD dependencies explicitly before dpkg.
+# Use --force-bad-name AND --force-depends to maximize install success.
+# If postinst still fails, purge the broken state so it doesn't cascade.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -222,25 +219,51 @@ log "STEP 2: Chrome Remote Desktop"
 log "─────────────────────────────────────────────────────"
 
 if [ "${ARCH}" = "amd64" ]; then
+    # Pre-install CRD runtime dependencies to reduce postinst failures
+    apt-get install -y --no-install-recommends \
+        xvfb x11-xserver-utils xbase-clients \
+        python3 python3-packaging python3-xdg \
+        psmisc xdg-utils \
+        2>/dev/null || true
+
     CRD_DEB="/tmp/chrome-remote-desktop_current_amd64.deb"
-    retry 3 8 wget -q \
+
+    # Download with multiple retries
+    retry 3 10 wget -q --timeout=60 \
         "https://dl.google.com/linux/direct/chrome-remote-desktop_current_amd64.deb" \
         -O "${CRD_DEB}" \
         && ok "Chrome RDP deb downloaded" \
         || warn "Chrome RDP download failed"
 
-    if [ -f "${CRD_DEB}" ]; then
-        dpkg --force-bad-name -i "${CRD_DEB}" 2>/dev/null || true
-        clear_dpkg_errors
-        ok "Chrome Remote Desktop installed (dpkg state cleared)"
+    if [ -f "${CRD_DEB}" ] && [ -s "${CRD_DEB}" ]; then
+        # Install with maximum force flags
+        dpkg --force-bad-name --force-depends --force-confold -i "${CRD_DEB}" 2>/dev/null || true
+        # Immediately clear any broken state
+        apt-get install -f -y 2>/dev/null || true
+        dpkg --configure --force-confold -a 2>/dev/null || true
+        apt-get install -f -y 2>/dev/null || true
+
+        # Verify install — if still broken, purge to prevent cascade
+        if dpkg -l chrome-remote-desktop 2>/dev/null | grep -q "^iF"; then
+            warn "Chrome RDP postinst still failing — purging to prevent dpkg cascade"
+            dpkg --purge --force-all chrome-remote-desktop 2>/dev/null || true
+            clear_dpkg_errors
+            warn "Chrome RDP removed — KasmVNC remains as primary desktop access"
+        else
+            ok "Chrome Remote Desktop installed"
+        fi
+        rm -f "${CRD_DEB}"
+    else
+        warn "Chrome RDP deb not downloaded — skipping"
     fi
 else
-    warn "Chrome Remote Desktop is amd64 only — skipped on ${ARCH}"
-    log "  Primary access on arm64: KasmVNC at :3000"
+    warn "Chrome Remote Desktop amd64 only — skipped on ${ARCH}"
 fi
 
 # =============================================================================
 # STEP 3: GITHUB DESKTOP
+#
+# v5.2: Multiple .deb version fallbacks + wget --no-check-certificate last resort.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -249,29 +272,51 @@ log "─────────────────────────
 
 GH_DESKTOP_OK=false
 
-if retry 2 5 bash -c '
-    wget -qO - https://apt.packages.shiftkey.dev/gpg.key \
-        | gpg --dearmor \
-        | tee /usr/share/keyrings/shiftkey-packages.gpg > /dev/null \
-    && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/shiftkey-packages.gpg] https://apt.packages.shiftkey.dev/ubuntu/ any main" \
-        > /etc/apt/sources.list.d/shiftkey-packages.list \
-    && apt-get update -qq \
-    && apt-get install -y github-desktop
-'; then
-    GH_DESKTOP_OK=true
-    ok "GitHub Desktop installed via shiftkey APT"
+# Primary: shiftkey APT repo
+if [ "${GH_DESKTOP_OK}" = "false" ]; then
+    if retry 2 5 bash -c '
+        wget -qO - https://apt.packages.shiftkey.dev/gpg.key 2>/dev/null \
+            | gpg --dearmor \
+            | tee /usr/share/keyrings/shiftkey-packages.gpg > /dev/null \
+        && echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/shiftkey-packages.gpg] https://apt.packages.shiftkey.dev/ubuntu/ any main" \
+            > /etc/apt/sources.list.d/shiftkey-packages.list \
+        && apt-get update -qq \
+        && apt-get install -y github-desktop
+    '; then
+        GH_DESKTOP_OK=true
+        ok "GitHub Desktop installed via shiftkey APT"
+    fi
 fi
 
+# Fallback: try multiple .deb versions (most recent first)
 if [ "${GH_DESKTOP_OK}" = "false" ] && [ "${ARCH}" = "amd64" ]; then
-    warn "shiftkey APT failed — trying direct .deb fallback"
-    retry 3 5 wget -q \
+    warn "shiftkey APT failed — trying direct .deb fallbacks"
+    for GH_VER in "3.4.3-linux1" "3.3.9-linux1" "3.3.8-linux1" "3.3.6-linux1"; do
+        GH_URL="https://github.com/shiftkey/desktop/releases/download/release-${GH_VER}/GitHubDesktop-linux-amd64-${GH_VER}.deb"
+        wget -q --timeout=60 "${GH_URL}" -O /tmp/github-desktop.deb 2>/dev/null \
+            && [ -s /tmp/github-desktop.deb ] \
+            && dpkg --force-bad-name --force-depends -i /tmp/github-desktop.deb 2>/dev/null \
+            && clear_dpkg_errors \
+            && GH_DESKTOP_OK=true \
+            && ok "GitHub Desktop installed via .deb v${GH_VER}" \
+            && break \
+            || warn "Version ${GH_VER} failed — trying next"
+        rm -f /tmp/github-desktop.deb
+    done
+fi
+
+# Last resort: wget --no-check-certificate
+if [ "${GH_DESKTOP_OK}" = "false" ] && [ "${ARCH}" = "amd64" ]; then
+    warn "Trying no-check-certificate fallback for GitHub Desktop"
+    wget -q --no-check-certificate --timeout=60 \
         "https://github.com/shiftkey/desktop/releases/download/release-3.3.9-linux1/GitHubDesktop-linux-amd64-3.3.9-linux1.deb" \
-        -O /tmp/github-desktop.deb \
-        && dpkg --force-bad-name -i /tmp/github-desktop.deb 2>/dev/null || true \
+        -O /tmp/github-desktop.deb 2>/dev/null \
+        && [ -s /tmp/github-desktop.deb ] \
+        && dpkg --force-bad-name --force-depends -i /tmp/github-desktop.deb 2>/dev/null \
         && clear_dpkg_errors \
         && GH_DESKTOP_OK=true \
-        && ok "GitHub Desktop installed via direct .deb" \
-        || warn "GitHub Desktop direct .deb also failed — non-fatal"
+        && ok "GitHub Desktop installed via no-check-certificate fallback" \
+        || warn "GitHub Desktop all fallbacks exhausted — non-fatal"
     rm -f /tmp/github-desktop.deb
 fi
 
@@ -286,37 +331,24 @@ log "STEP 4: GitKraken"
 log "─────────────────────────────────────────────────────"
 
 if [ "${ARCH}" = "amd64" ]; then
-    retry 3 8 wget -q \
+    retry 3 8 wget -q --timeout=60 \
         "https://release.gitkraken.com/linux/gitkraken-amd64.deb" \
         -O /tmp/gitkraken-amd64.deb \
         && ok "GitKraken deb downloaded" \
         || warn "GitKraken download failed"
 
-    if [ -f /tmp/gitkraken-amd64.deb ]; then
+    if [ -f /tmp/gitkraken-amd64.deb ] && [ -s /tmp/gitkraken-amd64.deb ]; then
         dpkg -i /tmp/gitkraken-amd64.deb 2>/dev/null || true
         clear_dpkg_errors
         ok "GitKraken installed"
         rm -f /tmp/gitkraken-amd64.deb
     fi
 else
-    warn "GitKraken: amd64 deb only — skipped on ${ARCH}"
+    warn "GitKraken amd64 only — skipped on ${ARCH}"
 fi
 
 # =============================================================================
 # STEP 5: KVM / QEMU / VIRT-MANAGER
-#
-# Package naming varies by Ubuntu version:
-#   Ubuntu 20.04 (focal):   qemu-kvm is a real package
-#   Ubuntu 22.04 (jammy):   qemu-kvm is a real package
-#   Ubuntu 24.04 (noble):   qemu-kvm is a metapackage → qemu-system-x86
-#   Ubuntu 25.04+:          qemu-kvm may be virtual — use qemu-system-x86
-#
-# We install both names with fallback so it works across Ubuntu versions.
-#
-# KVM IS RUNTIME-ONLY:
-#   /dev/kvm is not available during docker build — Tier 2 in log is CORRECT.
-#   At runtime with --privileged -v /dev:/dev, Tier 1 activates.
-#   libvirtd and virtlogd are registered as s6 services (STEP 16) for runtime.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -339,12 +371,10 @@ apt-get install -y \
     bridge-utils \
     ovmf \
     2>/dev/null || \
-warn "KVM/QEMU install had errors — best-effort result"
+warn "KVM/QEMU install had errors — best-effort"
 
 clear_dpkg_errors
 
-# These background starts fail silently during build (expected)
-# s6 services in STEP 16 handle runtime startup properly
 /usr/sbin/libvirtd &>/dev/null & disown 2>/dev/null || true
 /usr/sbin/virtlogd &>/dev/null & disown 2>/dev/null || true
 
@@ -360,8 +390,8 @@ if [ -e /dev/kvm ]; then
     command -v kvm-ok >/dev/null 2>&1 && log "  kvm-ok: $(kvm-ok 2>&1 | head -1)"
     VIRT_TIER="1-kvm"
 else
-    log "  ⚠ /dev/kvm absent → Tier 2: QEMU TCG (expected during docker build)"
-    log "    Runtime: docker run --privileged -v /dev:/dev to activate Tier 1"
+    log "  ⚠ /dev/kvm absent → Tier 2: QEMU TCG (expected during build)"
+    log "    Runtime: docker run --privileged -v /dev:/dev"
     VIRT_TIER="2-tcg"
 fi
 log "  ──────────────────────────"
@@ -371,11 +401,7 @@ ok "KVM/QEMU/virt-manager setup complete (tier: ${VIRT_TIER})"
 
 # =============================================================================
 # STEP 6: OLLAMA LLM RUNTIME
-#
-# Installed via curl installer. At build time, starts as background process
-# (harmless, does not persist in layer). At runtime, s6 service registered
-# in STEP 16 starts "ollama serve" as a supervised longrun service.
-# Serves at localhost:11434 inside the container.
+# s6 service in STEP 16 runs "ollama serve" at runtime (localhost:11434)
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -387,13 +413,12 @@ if command -v ollama >/dev/null 2>&1; then
 else
     retry 3 10 bash -c 'curl -fsSL https://ollama.com/install.sh | sh' \
         && ok "Ollama installed" \
-        || warn "Ollama install failed — install manually post-deploy"
+        || warn "Ollama install failed"
 fi
 
 clear_dpkg_errors
-# Background start at build time — harmless, s6 handles runtime properly
 ollama serve &>/dev/null & disown 2>/dev/null || true
-ok "Ollama serve registered (s6 runs this at container start — localhost:11434)"
+ok "Ollama serve started (s6 service at runtime → localhost:11434)"
 
 # =============================================================================
 # STEP 7: CREATIVE SUITE
@@ -406,28 +431,27 @@ log "─────────────────────────
 
 retry 3 5 apt-get install -y libreoffice \
     && ok "LibreOffice installed" \
-    || warn "LibreOffice install failed"
+    || warn "LibreOffice failed"
 clear_dpkg_errors
 
 add-apt-repository -y ppa:obsproject/obs-studio 2>/dev/null || true
 apt-get update -qq 2>/dev/null || true
 retry 3 5 apt-get install -y obs-studio \
     && ok "OBS Studio installed" \
-    || warn "OBS Studio install failed"
+    || warn "OBS Studio failed"
 clear_dpkg_errors
 
 retry 3 5 apt-get install -y blender \
     && ok "Blender installed" \
     || {
-        warn "Blender apt failed — trying snap fallback"
+        warn "Blender apt failed — snap fallback"
         snap install blender --classic 2>/dev/null \
-            && ok "Blender installed via snap" \
-            || warn "Blender install failed completely"
+            && ok "Blender via snap" \
+            || warn "Blender failed completely"
     }
 clear_dpkg_errors
 
-retry 3 5 apt-get install -y \
-    inkscape gimp audacity kdenlive \
+retry 3 5 apt-get install -y inkscape gimp audacity kdenlive \
     && ok "Inkscape, GIMP, Audacity, Kdenlive installed" \
     || warn "Some creative tools failed"
 clear_dpkg_errors
@@ -436,6 +460,10 @@ ok "Creative suite complete"
 
 # =============================================================================
 # STEP 8: VISUAL STUDIO CODE
+#
+# v5.2 FIX: Use Microsoft APT repo directly instead of wget visual-studio-code.sh
+# from GitHub. This is the canonical, reliable method (same as nexus0-static.sh).
+# Mirrors the original visual-studio-code.sh content inline.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -443,16 +471,74 @@ log "STEP 8: Visual Studio Code"
 log "─────────────────────────────────────────────────────"
 
 if command -v code >/dev/null 2>&1; then
-    ok "VS Code already installed"
+    ok "VS Code already installed — skipping"
 else
-    retry 3 5 wget -q \
-        "https://raw.githubusercontent.com/Underground-Ops/underground-nexus/refs/heads/main/visual-studio-code.sh" \
-        -O /tmp/vscode-install.sh \
-        && DEBIAN_FRONTEND=noninteractive bash /tmp/vscode-install.sh \
-        && ok "VS Code installed" \
-        || warn "VS Code install failed"
-    rm -f /tmp/vscode-install.sh
+    VSCODE_OK=false
+
+    # Method 1: Microsoft APT repo (canonical method from original nexus0 scripts)
+    if [ "${VSCODE_OK}" = "false" ]; then
+        log "  VS Code: Trying Microsoft APT repo..."
+        if wget -qO- --timeout=30 https://packages.microsoft.com/keys/microsoft.asc \
+                | gpg --dearmor > /tmp/packages.microsoft.gpg 2>/dev/null \
+            && install -o root -g root -m 644 /tmp/packages.microsoft.gpg \
+                /etc/apt/trusted.gpg.d/ \
+            && sh -c 'echo "deb [arch=amd64,arm64,armhf signed-by=/etc/apt/trusted.gpg.d/packages.microsoft.gpg] https://packages.microsoft.com/repos/code stable main" > /etc/apt/sources.list.d/vscode.list' \
+            && apt-get update -qq 2>/dev/null \
+            && apt-get install -y code; then
+            VSCODE_OK=true
+            ok "VS Code installed via Microsoft APT repo"
+        else
+            warn "Microsoft APT repo method failed"
+        fi
+        rm -f /tmp/packages.microsoft.gpg
+    fi
+
+    # Method 2: curl key + APT (alternative key delivery)
+    if [ "${VSCODE_OK}" = "false" ]; then
+        log "  VS Code: Trying curl key method..."
+        if curl -fsSL --retry 3 https://packages.microsoft.com/keys/microsoft.asc \
+                | gpg --dearmor > /etc/apt/trusted.gpg.d/packages.microsoft.gpg 2>/dev/null \
+            && echo "deb [arch=amd64,arm64,armhf] https://packages.microsoft.com/repos/vscode stable main" \
+                > /etc/apt/sources.list.d/vscode.list \
+            && apt-get update -qq 2>/dev/null \
+            && apt-get install -y code; then
+            VSCODE_OK=true
+            ok "VS Code installed via curl key method"
+        else
+            warn "curl key method failed"
+        fi
+    fi
+
+    # Method 3: wget GitHub script (original fallback — may fail in Hub)
+    if [ "${VSCODE_OK}" = "false" ]; then
+        log "  VS Code: Trying GitHub script fallback..."
+        retry 2 5 wget -q --timeout=60 \
+            "https://raw.githubusercontent.com/Underground-Ops/underground-nexus/refs/heads/main/visual-studio-code.sh" \
+            -O /tmp/vscode-install.sh \
+            && DEBIAN_FRONTEND=noninteractive bash /tmp/vscode-install.sh \
+            && VSCODE_OK=true \
+            && ok "VS Code installed via GitHub script" \
+            || warn "GitHub script method also failed"
+        rm -f /tmp/vscode-install.sh
+    fi
+
+    # Method 4: Direct .deb download (last resort)
+    if [ "${VSCODE_OK}" = "false" ] && [ "${ARCH}" = "amd64" ]; then
+        log "  VS Code: Trying direct .deb download..."
+        VSCODE_DEB_URL="https://update.code.visualstudio.com/latest/linux-deb-x64/stable"
+        curl -fsSL --retry 3 --max-time 120 -o /tmp/vscode.deb "${VSCODE_DEB_URL}" 2>/dev/null \
+            && [ -s /tmp/vscode.deb ] \
+            && dpkg -i /tmp/vscode.deb 2>/dev/null \
+            && clear_dpkg_errors \
+            && VSCODE_OK=true \
+            && ok "VS Code installed via direct .deb" \
+            || warn "Direct .deb also failed"
+        rm -f /tmp/vscode.deb
+    fi
+
+    [ "${VSCODE_OK}" = "false" ] && warn "VS Code: all methods failed — non-fatal"
 fi
+
 clear_dpkg_errors
 
 # =============================================================================
@@ -517,11 +603,11 @@ if ! command -v lazydocker >/dev/null 2>&1; then
         || warn "Lazydocker install failed"
 fi
 
-retry 3 5 wget -q \
+retry 3 5 wget -q --timeout=60 \
     "https://raw.githubusercontent.com/Underground-Ops/underground-nexus/refs/heads/main/Dagger%20CI/Scripts/nexus-devsecops-appinator.sh" \
     -O /tmp/appinator.sh \
     && bash /tmp/appinator.sh 2>/dev/null \
-    && ok "DEV/SEC/OPS commands written to /usr/local/bin" \
+    && ok "DEV/SEC/OPS commands written" \
     || warn "Appinator failed"
 rm -f /tmp/appinator.sh
 
@@ -553,14 +639,12 @@ if [ "${LINUXSERVER_MODE}" = "true" ]; then
     log "abc home: /config"
 else
     if ! id -u abc >/dev/null 2>&1; then
-        log "Creating user abc (UID 1000)"
         useradd -m -u 1000 -d "${ABC_HOME}" -s /bin/bash abc 2>/dev/null \
             && ok "User abc created" \
             || warn "useradd failed"
     else
         CURRENT_UID=$(id -u abc 2>/dev/null || echo "0")
         if [ "${CURRENT_UID}" != "1000" ]; then
-            log "Correcting abc UID: ${CURRENT_UID} → 1000"
             usermod -u 1000 -d "${ABC_HOME}" abc 2>/dev/null || warn "usermod failed"
             groupmod -g 1000 abc 2>/dev/null || warn "groupmod failed"
             find / -user "${CURRENT_UID}" \
@@ -577,7 +661,6 @@ for GRP in sudo docker kvm libvirt; do
     getent group "${GRP}" >/dev/null 2>&1 && usermod -aG "${GRP}" abc 2>/dev/null || true
 done
 
-# Password — sovereign standard (updated from original notiaPoint1)
 echo "abc:sovereign" | chpasswd 2>/dev/null || true
 ok "Password set: sovereign"
 
@@ -608,7 +691,7 @@ if [ ! -d "/nexus-bucket/underground-nexus/.git" ]; then
         https://github.com/Underground-Ops/underground-nexus.git \
         /nexus-bucket/underground-nexus \
         && ok "Underground Nexus repo cloned" \
-        || warn "git clone failed — will retry at container start via cont-init"
+        || warn "git clone failed — cont-init will retry at runtime"
 else
     git -C /nexus-bucket/underground-nexus pull --rebase 2>/dev/null || true
     ok "Underground Nexus repo updated"
@@ -618,20 +701,20 @@ id abc >/dev/null 2>&1 && chown -R abc:abc /nexus-bucket 2>/dev/null || \
     chown -R 1000:1000 /nexus-bucket 2>/dev/null || true
 
 # =============================================================================
-# STEP 14: WALLPAPERS — THREE-IMAGE ASPECT-RATIO SYSTEM
+# STEP 14: WALLPAPERS
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
-log "STEP 14: Wallpapers"
+log "STEP 14: Wallpapers (three-image aspect-ratio system)"
 log "─────────────────────────────────────────────────────"
 
 WALLPAPER_BASE="https://raw.githubusercontent.com/Underground-Ops/underground-nexus/main/Wallpapers"
 WALLPAPER_DIR="/usr/share/wallpapers/KubuntuLight/contents/images"
 mkdir -p "${WALLPAPER_DIR}"
-cd "${WALLPAPER_DIR}" || warn "Cannot cd to ${WALLPAPER_DIR}"
+cd "${WALLPAPER_DIR}" || warn "Cannot cd to wallpaper dir"
 
-retry 3 5 wget -q "${WALLPAPER_BASE}/nexus0-sea-space-jelly-highres.jpg" \
-    -O "1440x900.jpg" && ok "Highres wallpaper downloaded" || warn "Highres wallpaper failed"
+retry 3 5 wget -q --timeout=60 "${WALLPAPER_BASE}/nexus0-sea-space-jelly-highres.jpg" \
+    -O "1440x900.jpg" && ok "Highres wallpaper" || warn "Highres wallpaper failed"
 if [ -f "1440x900.jpg" ]; then
     for SIZE in 1280x800 1366x768 1600x1200 1680x1050 1920x1080 1920x1200 2560x1440; do
         rm -f "${SIZE}.jpg" "${SIZE}.png" 2>/dev/null || true
@@ -639,15 +722,15 @@ if [ -f "1440x900.jpg" ]; then
     done
 fi
 
-retry 3 5 wget -q "${WALLPAPER_BASE}/nexus0-sea-space-jelly.jpg" \
-    -O "1280x1024.jpg" && ok "Standard wallpaper downloaded" || warn "Standard wallpaper failed"
+retry 3 5 wget -q --timeout=60 "${WALLPAPER_BASE}/nexus0-sea-space-jelly.jpg" \
+    -O "1280x1024.jpg" && ok "Standard wallpaper" || warn "Standard wallpaper failed"
 if [ -f "1280x1024.jpg" ]; then
     rm -f "1024x768.jpg" "1024x768.png" 2>/dev/null || true
     cp "1280x1024.jpg" "1024x768.jpg"
 fi
 
-retry 3 5 wget -q "${WALLPAPER_BASE}/nexus0-moon-jelly.jpg" \
-    -O "1080x1920.jpg" && ok "Portrait wallpaper downloaded" || warn "Portrait wallpaper failed"
+retry 3 5 wget -q --timeout=60 "${WALLPAPER_BASE}/nexus0-moon-jelly.jpg" \
+    -O "1080x1920.jpg" && ok "Portrait wallpaper" || warn "Portrait wallpaper failed"
 if [ -f "1080x1920.jpg" ]; then
     for SIZE in 360x720 720x1440; do
         rm -f "${SIZE}.jpg" "${SIZE}.png" 2>/dev/null || true
@@ -664,10 +747,10 @@ cd / || true
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
-log "STEP 15: Nexus Creator Vault control panel"
+log "STEP 15: Control panel"
 log "─────────────────────────────────────────────────────"
 
-retry 3 5 wget -q \
+retry 3 5 wget -q --timeout=60 \
     "https://raw.githubusercontent.com/Underground-Ops/underground-nexus/main/Production%20Artifacts/Wordpress/nexus-creator-vault/nexus-creator-vault-control-panel.html" \
     -O /nexus-creator-vault-control-panel.html \
     && ok "Control panel downloaded" \
@@ -675,23 +758,26 @@ retry 3 5 wget -q \
 
 mkdir -p /config/Desktop /home/abc/Desktop 2>/dev/null || true
 cp -f /nexus-creator-vault-control-panel.html \
-    /config/Desktop/nexus-creator-vault-control-panel.html 2>/dev/null || true
+    /config/Desktop/ 2>/dev/null || true
 cp -f /nexus-creator-vault-control-panel.html \
-    /home/abc/Desktop/nexus-creator-vault-control-panel.html 2>/dev/null || true
+    /home/abc/Desktop/ 2>/dev/null || true
 
 # =============================================================================
 # STEP 16: DISPLAY MODE CONFIGURATION
-# Container mode: register s6-overlay supervised services
-# Bare metal mode: configure SDDM auto-login + systemd unit
+#
+# v5.2 FIX: CONTAINER_MODE is now forced true when LINUXSERVER_MODE=true.
+# This guarantees the s6 branch runs in Hub builds where /.dockerenv may be
+# absent. The BARE METAL branch only runs on genuine bare-metal systems where
+# neither /.dockerenv NOR /etc/s6-overlay exist.
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
-log "STEP 16: Display mode"
+log "STEP 16: Display mode (CONTAINER_MODE=${CONTAINER_MODE})"
 log "─────────────────────────────────────────────────────"
 
 if [ "${CONTAINER_MODE}" = "true" ]; then
 
-    log "CONTAINER MODE — s6-overlay service registration"
+    log "CONTAINER MODE — registering s6-overlay services"
 
     mkdir -p /etc/s6-overlay/s6-rc.d /etc/s6-overlay/cont-init.d
 
@@ -707,13 +793,13 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
         > /etc/s6-overlay/s6-rc.d/virtlogd/run
     echo "longrun" > /etc/s6-overlay/s6-rc.d/virtlogd/type
 
-    # s6: ollama (LLM inference — localhost:11434)
+    # s6: ollama
     mkdir -p /etc/s6-overlay/s6-rc.d/ollama
     printf '#!/usr/bin/with-contenv bash\nexec ollama serve\n' \
         > /etc/s6-overlay/s6-rc.d/ollama/run
     echo "longrun" > /etc/s6-overlay/s6-rc.d/ollama/type
 
-    # s6: chrome-remote-desktop (amd64; exits cleanly on arm64)
+    # s6: chrome-remote-desktop (exits cleanly if not installed / arm64)
     mkdir -p /etc/s6-overlay/s6-rc.d/chrome-remote-desktop
     printf '#!/usr/bin/with-contenv bash\n[ -f /opt/google/chrome-remote-desktop/chrome-remote-desktop ] || exit 0\nexec s6-setuidgid abc /opt/google/chrome-remote-desktop/chrome-remote-desktop --start\n' \
         > /etc/s6-overlay/s6-rc.d/chrome-remote-desktop/run
@@ -727,9 +813,11 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
         echo "longrun" > /etc/s6-overlay/s6-rc.d/supervisor/type
     fi
 
+    # Enable services in user bundle
     mkdir -p /etc/s6-overlay/s6-rc.d/user/contents.d
     for SVC in libvirtd virtlogd ollama chrome-remote-desktop; do
         touch "/etc/s6-overlay/s6-rc.d/user/contents.d/${SVC}"
+        ok "s6 service enabled: ${SVC}"
     done
     command -v supervisord >/dev/null 2>&1 && \
         touch /etc/s6-overlay/s6-rc.d/user/contents.d/supervisor || true
@@ -744,7 +832,7 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
         > /etc/s6-overlay/cont-init.d/02-nexus-bucket
     chmod +x /etc/s6-overlay/cont-init.d/02-nexus-bucket
 
-    # cont-init: git sync on start
+    # cont-init: git sync on container start
     printf '#!/usr/bin/with-contenv bash\ngit clone https://github.com/Underground-Ops/underground-nexus.git /nexus-bucket/underground-nexus 2>/dev/null||git -C /nexus-bucket/underground-nexus pull --rebase 2>/dev/null||true\nchown -R abc:abc /nexus-bucket/underground-nexus 2>/dev/null||true\n' \
         > /etc/s6-overlay/cont-init.d/03-nexus-sync
     chmod +x /etc/s6-overlay/cont-init.d/03-nexus-sync
@@ -753,12 +841,12 @@ if [ "${CONTAINER_MODE}" = "true" ]; then
 
     log ""
     log "  ── ZERO TRUST ACCESS ──────────────────────────────"
-    log "  Primary:   KasmVNC → http://<host>:1050 (prod) or :2500 (test)"
+    log "  Primary:   KasmVNC → http://<host>:1050 (prod) / :2500 (test)"
     log "  Secondary: Chrome RDP → remotedesktop.google.com/access"
     log "  Tertiary:  SSH → ssh abc@<ip>  (password: sovereign)"
     log "  ──────────────────────────────────────────────────"
 
-    ok "Container s6 services registered"
+    ok "s6 services registered — KasmVNC will start at container boot"
 
 else
 
@@ -782,7 +870,7 @@ SDDMEOF
 fi
 
 # =============================================================================
-# STEP 17: FINAL CLEANUP AND PERMISSIONS
+# STEP 17: FINAL CLEANUP
 # =============================================================================
 
 log "─────────────────────────────────────────────────────"
@@ -800,7 +888,7 @@ if id abc >/dev/null 2>&1; then
     [ -d /home/abc ] && chown -R abc:abc /home/abc 2>/dev/null || true
 else
     chown -R 1000:1000 /nexus-bucket 2>/dev/null || true
-    warn "abc user not yet created (linuxserver creates at runtime — normal)"
+    warn "abc user created at runtime by linuxserver /init — normal"
 fi
 
 ok "Cleanup done"
@@ -811,32 +899,37 @@ ok "Cleanup done"
 
 log ""
 log "═══════════════════════════════════════════════════"
-log "nexus0.sh v5.1 COMPLETE"
+log "nexus0.sh v5.2 COMPLETE"
 log "═══════════════════════════════════════════════════"
 log "Mode:       $([ "${CONTAINER_MODE}" = "true" ] && echo "CONTAINER" || echo "BARE METAL")"
 log "LinuxSrv:   ${LINUXSERVER_MODE}"
 log "User home:  ${ABC_HOME}"
 log "Arch:       ${ARCH}"
-log "KVM tier:   ${VIRT_TIER:-unknown (probe at runtime)}"
+log "KVM tier:   ${VIRT_TIER:-unknown}"
 log "Password:   sovereign"
 log ""
 log "INSTALLED ARSENAL:"
-command -v code         >/dev/null 2>&1 && log "  ✓ VS Code"         || log "  ✗ VS Code"
-command -v dagger       >/dev/null 2>&1 && log "  ✓ Dagger CI"       || log "  ✗ Dagger CI"
-command -v zarf         >/dev/null 2>&1 && log "  ✓ Zarf"            || log "  ✗ Zarf"
-command -v k9s          >/dev/null 2>&1 && log "  ✓ K9s"             || log "  ✗ K9s"
-command -v lazydocker   >/dev/null 2>&1 && log "  ✓ Lazydocker"      || log "  ✗ Lazydocker"
-command -v ollama       >/dev/null 2>&1 && log "  ✓ Ollama"          || log "  ✗ Ollama"
-command -v blender      >/dev/null 2>&1 && log "  ✓ Blender"         || log "  ✗ Blender"
-command -v obs          >/dev/null 2>&1 && log "  ✓ OBS Studio"      || log "  ✗ OBS Studio"
-command -v libreoffice  >/dev/null 2>&1 && log "  ✓ LibreOffice"     || log "  ✗ LibreOffice"
-command -v inkscape     >/dev/null 2>&1 && log "  ✓ Inkscape"        || log "  ✗ Inkscape"
-command -v gimp         >/dev/null 2>&1 && log "  ✓ GIMP"            || log "  ✗ GIMP"
-command -v gitkraken    >/dev/null 2>&1 && log "  ✓ GitKraken"       || dpkg -l gitkraken >/dev/null 2>&1 && log "  ✓ GitKraken (dpkg)" || log "  ✗ GitKraken"
-command -v github-desktop >/dev/null 2>&1 && log "  ✓ GitHub Desktop" || dpkg -l github-desktop >/dev/null 2>&1 && log "  ✓ GitHub Desktop (dpkg)" || log "  ✗ GitHub Desktop"
+command -v code         >/dev/null 2>&1 && log "  ✓ VS Code"          || log "  ✗ VS Code"
+command -v dagger       >/dev/null 2>&1 && log "  ✓ Dagger CI"        || log "  ✗ Dagger CI"
+command -v zarf         >/dev/null 2>&1 && log "  ✓ Zarf"             || log "  ✗ Zarf"
+command -v k9s          >/dev/null 2>&1 && log "  ✓ K9s"              || log "  ✗ K9s"
+command -v lazydocker   >/dev/null 2>&1 && log "  ✓ Lazydocker"       || log "  ✗ Lazydocker"
+command -v ollama       >/dev/null 2>&1 && log "  ✓ Ollama"           || log "  ✗ Ollama"
+command -v blender      >/dev/null 2>&1 && log "  ✓ Blender"          || log "  ✗ Blender"
+command -v obs          >/dev/null 2>&1 && log "  ✓ OBS Studio"       || log "  ✗ OBS Studio"
+command -v libreoffice  >/dev/null 2>&1 && log "  ✓ LibreOffice"      || log "  ✗ LibreOffice"
+command -v inkscape     >/dev/null 2>&1 && log "  ✓ Inkscape"         || log "  ✗ Inkscape"
+command -v gimp         >/dev/null 2>&1 && log "  ✓ GIMP"             || log "  ✗ GIMP"
+command -v gitkraken    >/dev/null 2>&1 && log "  ✓ GitKraken"        \
+    || dpkg -l gitkraken >/dev/null 2>&1 && log "  ✓ GitKraken (dpkg)" \
+    || log "  ✗ GitKraken"
+command -v github-desktop >/dev/null 2>&1 && log "  ✓ GitHub Desktop" \
+    || dpkg -l github-desktop >/dev/null 2>&1 && log "  ✓ GitHub Desktop (dpkg)" \
+    || log "  ✗ GitHub Desktop"
 [ -f /opt/google/chrome-remote-desktop/chrome-remote-desktop ] \
-    && log "  ✓ Chrome RDP" || log "  ✗ Chrome RDP (amd64 only)"
-command -v virt-manager >/dev/null 2>&1 && log "  ✓ Virt Manager"    || log "  ✗ Virt Manager"
+    && log "  ✓ Chrome RDP" \
+    || log "  ✗ Chrome RDP (amd64 only)"
+command -v virt-manager >/dev/null 2>&1 && log "  ✓ Virt Manager"     || log "  ✗ Virt Manager"
 log ""
 log "Full log: /tmp/nexus0-install.log"
 log "═══════════════════════════════════════════════════"
