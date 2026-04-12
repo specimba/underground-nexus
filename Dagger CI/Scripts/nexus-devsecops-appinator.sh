@@ -7,7 +7,7 @@ echo 'docker run -itd --name=nexus-creator-vault -h nexus-creator-vault --privil
 chmod +x /usr/local/bin/DEV
 
 # Create the SEC command script
-echo 'docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000 -p 2000:2000 -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 -p 18080:8080 -p 18443:18443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC
+echo 'docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000 -p 2000:2000 -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 -p 18080:18080 -p 18443:18443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC
 chmod +x /usr/local/bin/SEC
 
 # Create the OPS command script
@@ -19,7 +19,7 @@ echo "Commands have been added to /usr/local/bin and are now executable."
 # ---- Cerberus Manager SEC-exoskeleton Command ---- (unique SEC-exoskeleton command for deploying SEC on the Cerberus Manager package manager since normal SEC will fail due to port 80, 443 and 23** conflicts)
 
 # Create the SEC-exoskeleton command script
-echo 'docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 1000:1000 -p 2000:2000 -p 9010:9010 -p 9050:9443 -p 18080:8080 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-exoskeleton
+echo 'docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 1000:1000 -p 2000:2000 -p 9010:9010 -p 9050:9443 -p 18080:18080 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-exoskeleton
 chmod +x /usr/local/bin/SEC-exoskeleton
 
 echo "Command has been added to /usr/local/bin and is now executable."
@@ -31,11 +31,11 @@ echo 'docker container stop nexus-creator-vault && docker container rm nexus-cre
 chmod +x /usr/local/bin/DEV-rebuild
 
 # Create the SEC-rebuild command script
-echo 'docker container stop Underground-Nexus && docker container rm Underground-Nexus && docker volume rm underground-nexus-docker-socket underground-nexus-data nexus-bucket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000  -p 2000:2000 -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 -p 18080:8080 -p 18443:18443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-rebuild
+echo 'docker container stop Underground-Nexus && docker container rm Underground-Nexus && docker volume rm underground-nexus-docker-socket underground-nexus-data nexus-bucket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000  -p 2000:2000 -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 -p 18080:18080 -p 18443:18443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-rebuild
 chmod +x /usr/local/bin/SEC-rebuild
 
 # Create the SEC-exoskeleton-rebuild command script
-echo 'docker container stop Underground-Nexus && docker container rm Underground-Nexus && docker volume rm underground-nexus-docker-socket underground-nexus-data nexus-bucket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 1000:1000 -p 2000:2000 -p 9010:9010 -p 9050:9443 -p 18080:8080 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-exoskeleton-rebuild
+echo 'docker container stop Underground-Nexus && docker container rm Underground-Nexus && docker volume rm underground-nexus-docker-socket underground-nexus-data nexus-bucket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 1000:1000 -p 2000:2000 -p 9010:9010 -p 9050:9443 -p 18080:18080 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-exoskeleton-rebuild
 chmod +x /usr/local/bin/SEC-exoskeleton-rebuild
 
 # Create the OPS-rebuild command script
@@ -49,11 +49,11 @@ echo 'docker container stop nexus-creator-vault && docker container rm nexus-cre
 chmod +x /usr/local/bin/DEV-restore
 
 # Create the SEC-rebuild command script
-echo 'docker container stop Underground-Nexus && docker container rm Underground-Nexus && docker volume rm underground-nexus-docker-socket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000  -p 2000:2000 -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 -p 18080:8080 -p 18443:18443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-restore
+echo 'docker container stop Underground-Nexus && docker container rm Underground-Nexus && docker volume rm underground-nexus-docker-socket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000  -p 2000:2000 -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 -p 18080:18080 -p 18443:18443 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-restore
 chmod +x /usr/local/bin/SEC-restore
 
 # Create the SEC-exoskeleton-rebuild command script
-echo 'docker container stop Underground-Nexus && docker container rm Underground-Nexus && docker volume rm underground-nexus-docker-socket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 1000:1000 -p 2000:2000 -p 9010:9010 -p 9050:9443 -p 18080:8080 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-exoskeleton-restore
+echo 'docker container stop Underground-Nexus && docker container rm Underground-Nexus && docker volume rm underground-nexus-docker-socket && docker pull natoascode/underground-nexus:amd64 && docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init -p 1000:1000 -p 2000:2000 -p 9010:9010 -p 9050:9443 -p 18080:18080 -v /dev:/dev -v underground-nexus-docker-socket:/var/run -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket natoascode/underground-nexus:amd64 && docker exec Underground-Nexus bash deploy-olympiad.sh' > /usr/local/bin/SEC-exoskeleton-restore
 chmod +x /usr/local/bin/SEC-exoskeleton-restore
 
 # Create the OPS-rebuild command script

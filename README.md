@@ -85,7 +85,7 @@ The **Underground Nexus** is a **Sovereign Kernel Layer** – a governance-first
 docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init \
   -p 22:22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000 -p 2000:2000 \
   -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 \
-  -p 18080:8080 -p 18443:18443 \
+  -p 18080:18080 -p 18443:18443 \
   -v /dev:/dev -v underground-nexus-docker-socket:/var/run \
   -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket \
   natoascode/underground-nexus:amd64
@@ -107,7 +107,7 @@ docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --ini
 docker run -itd --name=Underground-Nexus -h Underground-Nexus --privileged --init \
   -p 22:22 -p 80:80 -p 8080:8080 -p 443:443 -p 1000:1000 -p 2000:2000 \
   -p 2375:2375 -p 2376:2376 -p 2377:2377 -p 9010:9010 -p 9050:9443 \
-  -p 18080:8080 -p 18443:18443 \
+  -p 18080:18080 -p 18443:18443 \
   -v /dev:/dev -v underground-nexus-docker-socket:/var/run \
   -v underground-nexus-data:/var/lib/docker/volumes -v nexus-bucket:/nexus-bucket \
   natoascode/underground-nexus:arm64
