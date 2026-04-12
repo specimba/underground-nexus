@@ -4,6 +4,8 @@
 
 > Turn any machine into a sovereign container node in a single command. No Docker Desktop. No corporate licensing. No inbound ports.
 
+<img src="https://github.com/Underground-Ops/underground-nexus/blob/cdcb0a3ee862c8c4f029fed6c45fe280786d4173/Graphics/SVG/The-BLG-Triad-The-Output.svg" alt="BLG Triad and the Exoskeleton">
+
 ---
 
 ## What Is the Sovereign Container Engine
