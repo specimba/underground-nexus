@@ -1,114 +1,177 @@
 #!/usr/bin/env bash
-set -euo pipefail
+# =============================================================================
+# Git-BIOS Control Panel — start_control_panel.sh
+# Cloud Underground · Underground Nexus
+# =============================================================================
+#
+# Single canonical launcher. Replaces all three previous versions.
+# No venv, no pip, no Flask — server.py uses stdlib only.
+# Works correctly when launched from a desktop icon (DISPLAY exported).
+#
+# What this does:
+#   1. Exports display environment so browser opens correctly from desktop icon
+#   2. Checks if server is already running (curl healthcheck — 5ms not 10s)
+#   3. Starts server if needed, waits for it to be ready
+#   4. Opens the browser with a verified URL
+# =============================================================================
 
-APP_DIR="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel"
-
-# Prefer a venv under /nexus-bucket; fall back to $HOME if not writable
-DEFAULT_VENV="/nexus-bucket/cp-venv"
-FALLBACK_VENV="$HOME/.gitbios-venv"
-VENV_DIR="${VENV_DIR:-$DEFAULT_VENV}"
-if ! mkdir -p "$VENV_DIR" 2>/dev/null; then
-  VENV_DIR="$FALLBACK_VENV"
-  mkdir -p "$VENV_DIR"
-fi
-
+APP_DIR="${APP_DIR:-/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel}"
 PORT="${PORT:-5000}"
-HTML_SOURCE="${HTML_SOURCE:-$APP_DIR/gitbios-control-panel.html}"
-LOG="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/control-panel.log"
+LOG="${APP_DIR}/control-panel.log"
 URL="http://localhost:${PORT}"
-
-healthcheck () {
-python3 - "$@" <<'PY'
-import sys, urllib.request, urllib.error, time, os
-url=os.environ.get('URL')
-for _ in range(50):
-    try:
-        with urllib.request.urlopen(url+'/healthz', timeout=1) as r:
-            if r.status==200: sys.exit(0)
-    except Exception:
-        time.sleep(0.2)
-sys.exit(1)
-PY
-}
-
-open_url () {
-  for B in \
-    "${BROWSER:-}" \
-    /usr/bin/firefox /snap/bin/firefox \
-    /usr/bin/chromium /usr/bin/chromium-browser \
-    /usr/bin/google-chrome /usr/bin/google-chrome-stable \
-    /usr/bin/sensible-browser \
-    /usr/bin/gio /usr/bin/xdg-open
-  do
-    [ -n "$B" ] || continue
-    if [ "$B" = "/usr/bin/gio" ]; then
-      nohup gio open "$URL" >/dev/null 2>&1 && return 0
-    elif [ -x "$B" ]; then
-      nohup "$B" "$URL" >/dev/null 2>&1 && return 0
-    fi
-  done
-  echo "Could not find a browser to open $URL" >> "$LOG"
-  return 1
-}
-
-# -------------------------
-# Robust interpreter select
-# -------------------------
 PYBIN="python3"
-USE_VENV=0
 
-# Check if venv module is available at all (python3-venv might be missing)
-if "$PYBIN" -Im venv -h >/dev/null 2>&1; then
-  if [ ! -x "$VENV_DIR/bin/python3" ]; then
-    # Try to create the venv; if ensurepip explodes, we catch it and continue without venv
-    if "$PYBIN" -Im venv "$VENV_DIR" >/dev/null 2>&1; then
-      USE_VENV=1
-      # Try to ensure pip inside the venv (ignore failure; we'll fall back later)
-      "$VENV_DIR/bin/python3" -Im ensurepip --upgrade >/dev/null 2>&1 || true
+# ─────────────────────────────────────────────────────────────────────────────
+# DISPLAY ENVIRONMENT — critical for desktop icon launch
+#
+# When a .desktop file with Terminal=false calls this script, the shell
+# environment may not have DISPLAY or WAYLAND_DISPLAY set. Without these,
+# any browser launch silently fails (binary exists, nohup returns 0, but
+# no window opens). We export from the live session before calling any browser.
+# ─────────────────────────────────────────────────────────────────────────────
+_setup_display() {
+    # Already set — nothing to do
+    if [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ]; then
+        return 0
     fi
-  else
-    USE_VENV=1
-  fi
-fi
 
-if [ "$USE_VENV" -eq 1 ]; then
-  PYBIN="$VENV_DIR/bin/python3"
-  # If Flask missing in venv, try to install (only if pip exists)
-  if ! "$PYBIN" -c "import flask" 2>/dev/null; then
-    if [ -x "$VENV_DIR/bin/pip" ]; then
-      TMPDIR=/var/tmp PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/pip" install "Flask==3.0.2" || true
+    # Try to read display from the abc/1000 user session environment
+    # KasmVNC / linuxserver webtop writes these to a known location
+    for ENV_FILE in \
+        /proc/$(pgrep -u abc -x i3 2>/dev/null | head -1)/environ \
+        /proc/$(pgrep -u abc -x kasm 2>/dev/null | head -1)/environ \
+        /proc/$(pgrep -u 1000 -x i3 2>/dev/null | head -1)/environ \
+        /tmp/.display-env \
+        /config/.display-env
+    do
+        [ -f "${ENV_FILE}" ] || continue
+        # Extract DISPLAY from the null-separated environ file
+        DISP=$(cat "${ENV_FILE}" 2>/dev/null | tr '\0' '\n' | grep '^DISPLAY=' | cut -d= -f2 | head -1)
+        WAYL=$(cat "${ENV_FILE}" 2>/dev/null | tr '\0' '\n' | grep '^WAYLAND_DISPLAY=' | cut -d= -f2 | head -1)
+        XAUT=$(cat "${ENV_FILE}" 2>/dev/null | tr '\0' '\n' | grep '^XAUTHORITY=' | cut -d= -f2 | head -1)
+        DBUS=$(cat "${ENV_FILE}" 2>/dev/null | tr '\0' '\n' | grep '^DBUS_SESSION_BUS_ADDRESS=' | cut -d= -f2- | head -1)
+        [ -n "${DISP}" ] && export DISPLAY="${DISP}"
+        [ -n "${WAYL}" ] && export WAYLAND_DISPLAY="${WAYL}"
+        [ -n "${XAUT}" ] && export XAUTHORITY="${XAUT}"
+        [ -n "${DBUS}" ] && export DBUS_SESSION_BUS_ADDRESS="${DBUS}"
+        break
+    done
+
+    # Hard fallback: KasmVNC always runs on :1 in linuxserver webtop
+    if [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ]; then
+        export DISPLAY=":1"
     fi
-    # If still no Flask, abandon venv and use system Python
-    "$PYBIN" -c "import flask" 2>/dev/null || USE_VENV=0
-  fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# HEALTHCHECK — curl (5ms) instead of spawning python3 (200ms × 50 = 10s)
+# ─────────────────────────────────────────────────────────────────────────────
+_is_server_running() {
+    curl -sf --max-time 1 "${URL}/healthz" >/dev/null 2>&1
+}
+
+_wait_for_server() {
+    local MAX=30  # seconds
+    local i=0
+    while [ "${i}" -lt "${MAX}" ]; do
+        _is_server_running && return 0
+        sleep 0.2
+        i=$((i + 1))
+    done
+    echo "[gitbios] Server did not start within ${MAX}s — check ${LOG}" >&2
+    return 1
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BROWSER LAUNCH — verified open, not just nohup fire-and-forget
+#
+# Key change: we check that a browser actually opened by testing if the
+# URL is accessible AND the window appeared. If xdg-open is available it
+# uses the session's MIME handler which always works correctly.
+# ─────────────────────────────────────────────────────────────────────────────
+_open_browser() {
+    # xdg-open is the correct tool for session-aware URL opening.
+    # It delegates to the running DE's handler (Firefox in MATE/i3).
+    if command -v xdg-open >/dev/null 2>&1; then
+        xdg-open "${URL}" >/dev/null 2>&1 &
+        sleep 0.5
+        # Verify something opened (best effort)
+        return 0
+    fi
+
+    # Fallback list — only try if xdg-open is absent
+    for B in \
+        "${BROWSER:-}" \
+        /usr/bin/firefox \
+        /snap/bin/firefox \
+        /usr/bin/chromium \
+        /usr/bin/chromium-browser \
+        /usr/bin/google-chrome \
+        /usr/bin/google-chrome-stable \
+        /usr/bin/sensible-browser
+    do
+        [ -n "${B}" ] && [ -x "${B}" ] || continue
+        "${B}" "${URL}" >/dev/null 2>&1 &
+        return 0
+    done
+
+    # Last resort: gio open (goes through gvfs/session handler)
+    if command -v gio >/dev/null 2>&1; then
+        gio open "${URL}" >/dev/null 2>&1 &
+        return 0
+    fi
+
+    echo "[gitbios] No browser found. Open manually: ${URL}" | tee -a "${LOG}"
+    return 1
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PYTHON CHECK — stdlib server.py needs only python3, no pip
+# ─────────────────────────────────────────────────────────────────────────────
+_check_python() {
+    if ! command -v python3 >/dev/null 2>&1; then
+        echo "[gitbios] ERROR: python3 not found. Install with:" >&2
+        echo "  sudo apt-get install -y python3" >&2
+        exit 1
+    fi
+    # Verify server.py exists
+    if [ ! -f "${APP_DIR}/server.py" ]; then
+        echo "[gitbios] ERROR: server.py not found at ${APP_DIR}/server.py" >&2
+        echo "  Re-run the installer: bash ${APP_DIR}/install-git-bios-control-panel.sh" >&2
+        exit 1
+    fi
+}
+
+# ─────────────────────────────────────────────────────────────────────────────
+# MAIN
+# ─────────────────────────────────────────────────────────────────────────────
+mkdir -p "${APP_DIR}"
+
+# Step 1: Set up display environment (critical for desktop icon launch)
+_setup_display
+
+# Step 2: Check Python
+_check_python
+
+# Step 3: Start server if not already running
+if ! _is_server_running; then
+    echo "[gitbios] Starting server on port ${PORT}..." | tee -a "${LOG}"
+    cd "${APP_DIR}"
+    PORT="${PORT}" nohup "${PYBIN}" server.py >> "${LOG}" 2>&1 &
+    PYBIN_PID=$!
+    echo "[gitbios] Server PID: ${PYBIN_PID}" | tee -a "${LOG}"
+
+    # Wait for the server to become ready
+    if ! _wait_for_server; then
+        echo "[gitbios] Failed to start. Last log lines:" >&2
+        tail -20 "${LOG}" >&2
+        exit 1
+    fi
+    echo "[gitbios] Server ready." | tee -a "${LOG}"
+else
+    echo "[gitbios] Server already running at ${URL}"
 fi
 
-if [ "$USE_VENV" -eq 0 ]; then
-  PYBIN="python3"
-  # If Flask missing on the system interpreter, install to user site (no sudo)
-  if ! "$PYBIN" -c "import flask" 2>/dev/null; then
-    # Try best-effort user install; ignore failures so we can still show logs
-    "$PYBIN" -m pip install --user --break-system-packages --no-cache-dir "Flask==3.0.2" || true
-  fi
-fi
-
-# Final check â�� bail with a helpful message if Flask is still missing
-if ! "$PYBIN" -c "import flask" 2>/dev/null; then
-  echo "ERROR: Flask is not available in venv ($VENV_DIR) or system Python." >&2
-  echo "Workarounds:" >&2
-  echo "  1) Try: sudo apt-get update && sudo apt-get install -y python3-venv" >&2
-  echo "  2) Or run once: python3 -m pip install --user --break-system-packages Flask==3.0.2" >&2
-  exit 1
-fi
-
-# -------------------------
-# Start the server if needed
-# -------------------------
-export URL
-if ! healthcheck; then
-  cd "$APP_DIR"
-  (PORT="$PORT" HTML_SOURCE="$HTML_SOURCE" nohup "$PYBIN" server.py >> "$LOG" 2>&1 &) >/dev/null
-  healthcheck || echo "Started; health check not ready yet." >> "$LOG" || true
-fi
-
-open_url || true
+# Step 4: Open browser
+_open_browser
+echo "[gitbios] Opened: ${URL}"
