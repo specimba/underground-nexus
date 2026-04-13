@@ -1,16 +1,17 @@
-# Sovereign Container Engine
+# Sovereign Exoskeleton Engine
+## (Container and Virtual Machine Infrastructure Engine)
 
 **Cloud Underground · Underground Nexus · Cerberus C2 Bootstrap**
 
-> Turn any machine into a sovereign container node in a single command. No Docker Desktop. No corporate licensing. No inbound ports.
+> Turn any machine into a sovereign infrastructure node in a single command. No Docker Desktop. No corporate licensing. No inbound ports.
 
 <img src="https://github.com/Underground-Ops/underground-nexus/blob/main/Graphics/SVG/The-BLG-Triad-The-Output.svg" alt="BLG Triad and the Exoskeleton">
 
 ---
 
-## What Is the Sovereign Container Engine
+## What Is the Sovereign Exoskeleton Engine
 
-The Sovereign Container Engine is a self-contained infrastructure bootstrapper that provisions any machine — laptop, bare-metal server, or cloud instance — into a fully operational container node running Cerberus Manager, MinIO object storage, and a Docker Swarm cluster. It works completely offline after the initial image pull and is designed to be air-gappable for secure and disconnected environments.
+The Sovereign Exoskeleton Engine is a self-contained infrastructure bootstrapper that provisions any machine — laptop, bare-metal server, or cloud instance — into a fully operational container node running Cerberus Manager, MinIO object storage, and a Docker Swarm cluster. It works completely offline after the initial image pull and is designed to be air-gappable for secure and disconnected environments.
 
 The engine ships as a single compiled binary for each platform. No dependencies. No package manager. Double-click or run one command and the entire stack stands up automatically, including handling reboots on Windows.
 
@@ -534,4 +535,4 @@ No `go mod tidy` required for Linux and macOS (zero external dependencies). Wind
 
 ---
 
-*Cloud Underground · Sovereign Container Engine · Built with the Civilization Architect Pro dRAG stack*
+*Cloud Underground · Sovereign Exoskeleton Engine · Built with the Civilization Architect Pro dRAG stack*
