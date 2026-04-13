@@ -40,9 +40,9 @@ async function loadProfile(name) {
   renderButtons(data, name);
 }
 
-function makeBadge(text) {
+function makeBadge(text, cls) {
   const sp = document.createElement('span');
-  sp.className = 'cp-badge';
+  sp.className = 'cp-badge' + (cls ? ' cp-badge-' + cls : '');
   sp.textContent = text;
   return sp;
 }
@@ -56,13 +56,20 @@ function renderButtons(buttons, profileName) {
 
     const b = document.createElement('button');
     b.className = 'cp-button';
+    // Mark privileged buttons with a subtle visual indicator
+    if (btn.privileged) b.classList.add('cp-button-privileged');
     b.textContent = btn.label;
     if (btn.interactive) b.appendChild(makeBadge('interactive'));
+    if (btn.privileged)  b.appendChild(makeBadge('⬆ sudo', 'privileged'));
 
     b.onclick = async () => {
       try {
         if (btn.label.toUpperCase().includes('WARNING')) {
           if (!confirm('This action is marked WARNING:\n\n' + btn.label + '\n\nRun it now?')) return;
+        }
+        // Confirm privileged actions that aren't already WARNING
+        if (btn.privileged && !btn.label.toUpperCase().includes('WARNING')) {
+          if (!confirm('This button runs with elevated privileges (sudo):\n\n' + btn.label + '\n\nContinue?')) return;
         }
         setBusy(true);
         logAppend('$ ' + btn.command);
@@ -77,17 +84,15 @@ function renderButtons(buttons, profileName) {
           body: JSON.stringify(btn)
         });
 
-        // --- New logic for Terminator / tmux / non-interactive paths ---
         if (res.launched === 'terminator') {
           logAppend('[interactive] Launched in a new Terminator window' + (res.title ? ' (' + res.title + ')' : ''));
         } else if (res.attach) {
-          logAppend('[interactive] attach with: ' + res.attach); // tmux fallback
+          logAppend('[interactive] attach with: ' + res.attach);
         } else {
           logAppend(res.output || '[no output]');
           if (res.download) logAppend('Download: ' + location.origin + res.download);
           if (typeof res.exit_code === 'number') logAppend('[exit code ' + res.exit_code + ']');
         }
-        // ---------------------------------------------------------------
       } catch (e) {
         logAppend('[ERROR] ' + e.message);
       } finally {
@@ -106,7 +111,8 @@ function renderButtons(buttons, profileName) {
       const command = prompt('Edit command', btn.command);
       if (command === null) return;
       const interactive = confirm('Interactive? OK=yes, Cancel=no');
-      const payload = { label, command, interactive };
+      const privileged  = confirm('Run with elevated privileges (sudo)?\nUse for eBPF, kernel modules, GPIO, etc.\nOK=yes, Cancel=no');
+      const payload = { label, command, interactive, privileged };
 
       const headers = { 'Content-Type': 'application/json' };
       const token = (window.CP_TOKEN || '').trim();
@@ -130,6 +136,7 @@ function renderButtons(buttons, profileName) {
     const label = prompt('Label'); if (label === null) return;
     const command = prompt('Command'); if (command === null) return;
     const interactive = confirm('Interactive? OK=yes, Cancel=no');
+    const privileged  = confirm('Run with elevated privileges (sudo)?\nUse for eBPF, kernel modules, GPIO, etc.\nOK=yes, Cancel=no');
 
     const headers = { 'Content-Type': 'application/json' };
     const token = (window.CP_TOKEN || '').trim();
@@ -138,7 +145,7 @@ function renderButtons(buttons, profileName) {
     await api('/api/profiles/' + encodeURIComponent(profileName), {
       method: 'PUT',
       headers,
-      body: JSON.stringify({ append: { label, command, interactive } })
+      body: JSON.stringify({ append: { label, command, interactive, privileged } })
     });
     await loadProfile(profileName);
   };

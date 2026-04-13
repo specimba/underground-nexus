@@ -31,3 +31,15 @@ body.cp-busy::after {
   z-index: 100000;
   font-weight:600; letter-spacing:0.5px;
 }
+
+/* Privileged button — subtle amber left border to signal elevated execution.
+   Not alarming, just clearly marked. Used for eBPF, kernel modules, GPIO, CAN. */
+.cp-button-privileged {
+  border-left: 3px solid #ffb300;
+}
+
+/* Privileged badge — amber to distinguish from the purple interactive badge */
+.cp-badge-privileged {
+  background: #7a4a00;
+  color: #ffb300;
+}
