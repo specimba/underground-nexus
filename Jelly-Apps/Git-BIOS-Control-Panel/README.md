@@ -1,194 +1,163 @@
-# GitBIOS Control Panel: Build Guide!
+# Git-BIOS Control Panel
+
+**Cloud Underground · Underground Nexus**
+
+A sovereign command-and-control panel that runs as a local web app. Buttons map to shell commands, Docker operations, eBPF probes, kernel modules, GPIO pins, ROS2 nodes, and any other system operation you can express in bash.
 
 ---
 
-## Folder layout (expected)
+## What Changed (v2)
+
+| Area | Before | After |
+|---|---|---|
+| Dependencies | Flask (pip/venv required) | Zero — stdlib only |
+| Startup time | 3–10s (venv waterfall) | < 100ms |
+| Desktop icon | Browser didn't open (no DISPLAY) | Opens browser automatically |
+| Script copies | 3 diverging versions of start script | 1 canonical file |
+| Healthcheck | python3 subprocess, 10s max | curl, 5ms |
+| Air-gap | Hung 30s/asset on every page load | Background fetch, non-blocking |
+| Robotics/eBPF | No profile | `Robotics.json` profile included |
+| Privilege | No escalation support | `"privileged": true` per button |
+
+---
+
+## Folder Layout
 
 ```
-//config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel
-  server.py
-  start_control_panel.sh
-  gitbios-control-panel.html
-  static/
-    assets/             # created on launch; icons, logos, cached images
-    cache/              # offline cache (auto-created)
+Jelly-Apps/Git-BIOS-Control-Panel/
+  server.py                        ← stdlib HTTP server (no Flask)
+  start_control_panel.sh           ← canonical launcher (one file, replaces 3)
+  install-git-bios-control-panel.sh ← installer/repair script
+  launch-desktop-icon.sh           ← delegates to installer
+  gitbios-control-panel.html       ← source HTML (the page content)
+  requirements-flask.txt           ← kept for reference only, not needed
   profiles/
-    Default.json        # example or your own
+    Default.json                   ← default buttons
+    Robotics.json                  ← eBPF, GPIO, CAN, ROS2, kernel buttons
+  static/
+    app.js                         ← dock UI logic
+    app.css                        ← dock UI styles
+    assets/                        ← cached images (auto-created on first run)
 ```
-
 
 ---
 
-## Quick Start (most user-friendly)
-
-> These steps assume your Desktop is `/config/Desktop`. If your environment uses a different Desktop path, adjust file paths accordingly accordingly.
-
-### 1) Install dependencies (run in the Git-Bios Control Panel directory):
+## Quick Install
 
 ```bash
-sudo apt update
-sudo apt install python3 python3-pip -y
-sudo apt install python3-full
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements-flask.txt --break-system-packages
+# From the workbench container (as abc or root):
+bash /config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/install-git-bios-control-panel.sh
 ```
 
-### 2) Build the python server (run in the terminal); this is the code contained in the 'launch-desktop-icon.sh' file.
+That's it. The installer:
+- Checks python3 is available (only dependency)
+- Writes the canonical `start_control_panel.sh` with correct paths
+- Creates the `.desktop` file on your Desktop with the correct `Exec=` path
+- Optionally registers an s6 pre-warm service if run as root in a linuxserver container
+
+**No pip. No venv. No Flask. No sudo needed for the app itself.**
+
+---
+
+## Starting the Panel
+
+**From the Desktop icon:** Double-click. Browser opens to `http://localhost:5000`.
+
+**From the terminal:**
+```bash
+bash /config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/start_control_panel.sh
+```
+
+**Custom port:**
+```bash
+PORT=8080 bash start_control_panel.sh
+```
+
+---
+
+## Button Profile JSON Format
+
+Profiles live in `profiles/` as `.json` files. Each is a list of button objects:
+
+```json
+[
+  {
+    "label":       "Button label shown in the UI",
+    "command":     "bash command to run",
+    "interactive": false,
+    "privileged":  false
+  }
+]
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `label` | string | Display name. Prefix with `WARNING!` for a confirm dialog. |
+| `command` | string | Any bash command. Special: `__INTERNAL_BACKUP__`, `__INTERNAL_RESTORE__` |
+| `interactive` | bool | `true` = opens in Terminator window (or tmux fallback) |
+| `privileged` | bool | `true` = command is prefixed with `sudo -n` for kernel/eBPF/GPIO use |
+
+---
+
+## Robotics & eBPF Use
+
+Load the `Robotics` profile from the profile selector. It includes buttons for:
+
+- **eBPF:** `bpftool prog list`, bpftrace syscall tracing, I/O latency histograms
+- **Kernel modules:** `modprobe` load/unload with privilege escalation
+- **GPIO:** `gpioinfo` chip scan, line listing (requires `--privileged` container)
+- **I2C:** `i2cdetect` bus scan
+- **CAN bus:** interface status, `can0` bring-up at 500kbps
+- **ROS2:** environment check, node list, interactive ROS2 CLI
+- **Real-time:** PREEMPT_RT check, process priority adjustment
+
+For eBPF and kernel-level operations the container must run with `--privileged`. The `"privileged": true` field in the button JSON adds `sudo -n` before the command — configure passwordless sudo for abc in `/etc/sudoers` if needed.
+
+---
+
+## s6 Pre-warm (linuxserver webtop)
+
+If you run as root during install, an s6 longrun service is registered at `/etc/s6-overlay/s6-rc.d/gitbios/`. This starts the server when the container boots so the desktop icon click is instant — no cold start delay.
+
+Manual registration:
+```bash
+sudo bash install-git-bios-control-panel.sh
+```
+
+---
+
+## Desktop Icon (if missing)
+
+Re-run the installer — it recreates the `.desktop` file with the correct path:
 
 ```bash
-cat >/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/start_control_panel.sh <<'EOF'
-#!/usr/bin/env bash
-set -euo pipefail
-
-APP_DIR="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel"
-
-# Prefer a venv under /nexus-bucket; fall back to $HOME if not writable
-DEFAULT_VENV="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/cp-venv"
-FALLBACK_VENV="$HOME/.gitbios-venv"
-VENV_DIR="${VENV_DIR:-$DEFAULT_VENV}"
-if ! mkdir -p "$VENV_DIR" 2>/dev/null; then
-  VENV_DIR="$FALLBACK_VENV"
-  mkdir -p "$VENV_DIR"
-fi
-
-PORT="${PORT:-5000}"
-HTML_SOURCE="${HTML_SOURCE:-$APP_DIR/gitbios-control-panel.html}"
-LOG="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/control-panel.log"
-URL="http://localhost:${PORT}"
-
-healthcheck () {
-python3 - "$@" <<'PY'
-import sys, urllib.request, urllib.error, time, os
-url=os.environ.get('URL')
-for _ in range(50):
-    try:
-        with urllib.request.urlopen(url+'/healthz', timeout=1) as r:
-            if r.status==200: sys.exit(0)
-    except Exception:
-        time.sleep(0.2)
-sys.exit(1)
-PY
-}
-
-open_url () {
-  for B in \
-    "${BROWSER:-}" \
-    /usr/bin/firefox /snap/bin/firefox \
-    /usr/bin/chromium /usr/bin/chromium-browser \
-    /usr/bin/google-chrome /usr/bin/google-chrome-stable \
-    /usr/bin/sensible-browser \
-    /usr/bin/gio /usr/bin/xdg-open
-  do
-    [ -n "$B" ] || continue
-    if [ "$B" = "/usr/bin/gio" ]; then
-      nohup gio open "$URL" >/dev/null 2>&1 && return 0
-    elif [ -x "$B" ]; then
-      nohup "$B" "$URL" >/dev/null 2>&1 && return 0
-    fi
-  done
-  echo "Could not find a browser to open $URL" >> "$LOG"
-  return 1
-}
-
-# -------------------------
-# Robust interpreter select
-# -------------------------
-PYBIN="python3"
-USE_VENV=0
-
-# Check if venv module is available at all (python3-venv might be missing)
-if "$PYBIN" -Im venv -h >/dev/null 2>&1; then
-  if [ ! -x "$VENV_DIR/bin/python3" ]; then
-    # Try to create the venv; if ensurepip explodes, we catch it and continue without venv
-    if "$PYBIN" -Im venv "$VENV_DIR" >/dev/null 2>&1; then
-      USE_VENV=1
-      # Try to ensure pip inside the venv (ignore failure; we'll fall back later)
-      "$VENV_DIR/bin/python3" -Im ensurepip --upgrade >/dev/null 2>&1 || true
-    fi
-  else
-    USE_VENV=1
-  fi
-fi
-
-if [ "$USE_VENV" -eq 1 ]; then
-  PYBIN="$VENV_DIR/bin/python3"
-  # If Flask missing in venv, try to install (only if pip exists)
-  if ! "$PYBIN" -c "import flask" 2>/dev/null; then
-    if [ -x "$VENV_DIR/bin/pip" ]; then
-      TMPDIR=/var/tmp PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/pip" install "Flask==3.0.2" || true
-    fi
-    # If still no Flask, abandon venv and use system Python
-    "$PYBIN" -c "import flask" 2>/dev/null || USE_VENV=0
-  fi
-fi
-
-if [ "$USE_VENV" -eq 0 ]; then
-  PYBIN="python3"
-  # If Flask missing on the system interpreter, install to user site (no sudo)
-  if ! "$PYBIN" -c "import flask" 2>/dev/null; then
-    # Try best-effort user install; ignore failures so we can still show logs
-    "$PYBIN" -m pip install --user --break-system-packages --no-cache-dir "Flask==3.0.2" || true
-  fi
-fi
-
-# Final check - bail with a helpful message if Flask is still missing
-if ! "$PYBIN" -c "import flask" 2>/dev/null; then
-  echo "ERROR: Flask is not available in venv ($VENV_DIR) or system Python." >&2
-  echo "Workarounds:" >&2
-  echo "  1) Try: sudo apt-get update && sudo apt-get install -y python3-venv" >&2
-  echo "  2) Or run once: python3 -m pip install --user --break-system-packages Flask==3.0.2" >&2
-  exit 1
-fi
-
-# -------------------------
-# Start the server if needed
-# -------------------------
-export URL
-if ! healthcheck; then
-  cd "$APP_DIR"
-  (PORT="$PORT" HTML_SOURCE="$HTML_SOURCE" nohup "$PYBIN" server.py >> "$LOG" 2>&1 &) >/dev/null
-  healthcheck || echo "Started; health check not ready yet." >> "$LOG" || true
-fi
-
-open_url || true
-EOF
-
-chmod +x /config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel
+bash install-git-bios-control-panel.sh
 ```
 
-### 3) Test the Control Panel by running the start script in your terminal (adjust the directory paths for the Git-Bios Control Panel directory as necessary):
+The `.desktop` file is written to `~/Desktop/Git-BIOS-Control-Panel.desktop` with the correct `Exec=` path. The previous README had a hardcoded wrong path — this is now dynamic.
 
-```bash
-/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/start_control_panel.sh
-```
+---
 
-After running this command, the Git-BIOS control panel should pop up in your browser at localhost:5000.
+## API Reference
 
-### 4) Make the button appear on your dekstop - and make it clickable!
+All APIs are identical to the previous Flask version. No client changes needed.
 
-```bash
-DESK="/config/Desktop"
+| Method | Path | Description |
+|---|---|---|
+| GET | `/healthz` | `{"ok": true}` — used by the launcher |
+| GET | `/` | Rendered control panel page |
+| GET | `/api/profiles` | List profile names |
+| GET | `/api/profiles/<n>` | Get profile buttons |
+| POST | `/api/profiles` | Create profile `{name, buttons}` |
+| PUT | `/api/profiles/<n>` | Update/append button |
+| DELETE | `/api/profiles/<n>` | Delete profile |
+| POST | `/api/profiles/import` | Upload profile JSON file |
+| GET | `/api/profiles/export/<n>` | Download profile JSON |
+| GET | `/api/backup/latest` | Download latest backup |
+| POST | `/api/run` | Execute button `{command, interactive, privileged}` |
 
-sudo install -d -m 755 -o abc -g abc "$DESK"
+Optional auth: set `CP_TOKEN` env var. All write/exec APIs then require `Authorization: Bearer <token>`.
 
-sudo tee "$DESK/Git-Bios Control Panel.desktop" >/dev/null <<'EOF'
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Git-Bios Control Panel
-Comment=Launch the Git-BIOS Control Panel
-Exec=/config/Git-BIOS-Control-Panel/start_control_panel.sh
-Path=/config/Git-BIOS-Control-Panel
-Icon=/config/Git-BIOS-Control-Panel/static/assets/nexus-logo.png
-Terminal=false
-Categories=Utility;
-TryExec=/config/Git-BIOS-Control-Panel/start_control_panel.sh
-EOF
+---
 
-sudo chown abc:abc "$DESK/Git-Bios Control Panel.desktop"
-chmod +x "$DESK/Git-Bios Control Panel.desktop"
-gio set "$DESK/Git-Bios Control Panel.desktop" metadata::trusted true 2>/dev/null || true
-```
-
-The **Git-BIOS Control Panel** should now appear on your desktop. Double-click it whenever you want to use the control pane.
+*Cloud Underground · Underground Nexus · Git-BIOS Control Panel*
