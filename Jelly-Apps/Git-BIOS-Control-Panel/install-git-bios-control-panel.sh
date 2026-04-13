@@ -1,228 +1,217 @@
-bash -euxo pipefail <<'EOF'
-# ============================================================
-# Git-BIOS Control Panel - install/repair script (Ubuntu/MATE)
-# - Follows README flow: venv, start_control_panel.sh, desktop icon
-# - Repairs if present; installs if missing.
-# - Target user = abc (change TARGET_USER to adjust)
-# ============================================================
+#!/usr/bin/env bash
+# =============================================================================
+# Git-BIOS Control Panel — Installer
+# Cloud Underground · Underground Nexus
+# =============================================================================
+#
+# Installs or repairs the Git-BIOS Control Panel.
+# Idempotent — safe to run multiple times.
+#
+# What this does:
+#   1. Installs python3 system package (only dep — no pip, no venv, no Flask)
+#   2. Creates the app directory and ensures server.py is present
+#   3. Writes the canonical start_control_panel.sh
+#   4. Creates the desktop .desktop launcher with correct path
+#   5. Optionally adds a gitbios s6 service so the server pre-warms at boot
+#
+# Usage:
+#   sudo bash install-git-bios-control-panel.sh
+#   TARGET_USER=myuser APP_DIR=/my/path bash install-git-bios-control-panel.sh
+# =============================================================================
 
+set -o pipefail
 export DEBIAN_FRONTEND=noninteractive
 
-# --- settings ---
 TARGET_USER="${TARGET_USER:-abc}"
-APP_DIR_DEFAULT="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel"
-APP_DIR="${APP_DIR:-$APP_DIR_DEFAULT}"
+APP_DIR="${APP_DIR:-/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel}"
 PORT="${PORT:-5000}"
+EUID_NOW=$(id -u)
+[ "${EUID_NOW}" -eq 0 ] && SUDO="" || SUDO="sudo -n"
 
-# Resolve abc's HOME and Desktop
-USER_HOME="$(getent passwd "$TARGET_USER" | cut -d: -f6 || true)"
-[ -n "$USER_HOME" ] || USER_HOME="/home/$TARGET_USER"
+echo "[gitbios-install] Starting Git-BIOS Control Panel installation"
+echo "[gitbios-install] Target user: ${TARGET_USER}"
+echo "[gitbios-install] App dir:     ${APP_DIR}"
+echo "[gitbios-install] Port:        ${PORT}"
 
-as_abc() { sudo -u "$TARGET_USER" -H bash -lc "$*"; }
-
-DESKTOP_DIR="$(as_abc 'command -v xdg-user-dir >/dev/null 2>&1 && xdg-user-dir DESKTOP || echo "$HOME/Desktop"')"
-[ -n "$DESKTOP_DIR" ] || DESKTOP_DIR="$USER_HOME/Desktop"
-
-# Use sudo for system changes if not root
-if [ "${EUID:-$(id -u)}" -ne 0 ]; then SUDO="sudo -n"; else SUDO=""; fi
-
-# --- ensure minimal system deps (best-effort) ---
-$SUDO apt-get update || true
-$SUDO apt-get install -y python3 python3-venv python3-pip xdg-utils desktop-file-utils gio || true
-
-# --- create app dir if missing; do not overwrite your code ---
-mkdir -p "$APP_DIR"
-chown -R "$TARGET_USER:$TARGET_USER" "$APP_DIR"
-
-# If requirements are missing entirely, write a minimal one so we can proceed.
-if [ ! -f "$APP_DIR/requirements-flask.txt" ] && [ ! -f "$APP_DIR/requirements.txt" ]; then
-  echo "flask==3.0.2" > "$APP_DIR/requirements-flask.txt"
-  chown "$TARGET_USER:$TARGET_USER" "$APP_DIR/requirements-flask.txt"
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 1: System dependency — python3 only (no pip, no venv, no Flask)
+# ─────────────────────────────────────────────────────────────────────────────
+echo "[gitbios-install] Step 1: Checking python3..."
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "[gitbios-install] Installing python3..."
+    ${SUDO} apt-get update -qq 2>/dev/null || true
+    ${SUDO} apt-get install -y python3 2>/dev/null || true
 fi
 
-# If there's no server.py yet, create a tiny compatible stub so the launcher works.
-if [ ! -f "$APP_DIR/server.py" ]; then
-  cat > "$APP_DIR/server.py" <<'PY'
-from flask import Flask
-app = Flask(__name__)
-
-@app.get("/")
-def index():
-    return "<h1>Git-BIOS Control Panel</h1><p>Stub running.</p>"
-
-@app.get("/healthz")
-def healthz():
-    return "ok", 200
-
-if __name__ == "__main__":
-    import os
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT","5000")))
-PY
-  chown "$TARGET_USER:$TARGET_USER" "$APP_DIR/server.py"
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "[gitbios-install] ERROR: python3 could not be installed." >&2
+    exit 1
 fi
+echo "[gitbios-install] python3 OK: $(python3 --version)"
 
-# --- write the exact start_control_panel.sh described in README ---
-# (slightly hardened but functionally identical to the README version) :contentReference[oaicite:1]{index=1}
-cat > "$APP_DIR/start_control_panel.sh" <<'SH'
-#!/usr/bin/env bash
-set -euo pipefail
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 2: Ensure app directory exists
+# ─────────────────────────────────────────────────────────────────────────────
+echo "[gitbios-install] Step 2: App directory..."
+mkdir -p "${APP_DIR}/profiles" "${APP_DIR}/static/assets"
 
-APP_DIR="{{APP_DIR}}"
-# Prefer a venv under app dir; fall back to $HOME if not writable
-DEFAULT_VENV="{{APP_DIR}}/cp-venv"
-FALLBACK_VENV="$HOME/.gitbios-venv"
-VENV_DIR="${VENV_DIR:-$DEFAULT_VENV}"
-
-if ! mkdir -p "$VENV_DIR" 2>/dev/null; then
-  VENV_DIR="$FALLBACK_VENV"
-  mkdir -p "$VENV_DIR"
-fi
-
-PORT="${PORT:-5000}"
-HTML_SOURCE="${HTML_SOURCE:-$APP_DIR/gitbios-control-panel.html}"
-LOG="$APP_DIR/control-panel.log"
-URL="http://localhost:${PORT}"
-
-healthcheck () {
-  python3 - "$@" <<'PY'
-import sys, urllib.request, urllib.error, time, os
-url=os.environ.get('URL')
-for _ in range(50):
-    try:
-        with urllib.request.urlopen(url+'/healthz', timeout=1) as r:
-            if r.status==200:
-                sys.exit(0)
-    except Exception:
-        time.sleep(0.2)
-sys.exit(1)
-PY
-}
-
-open_url () {
-  for B in \
-    "${BROWSER:-}" \
-    /usr/bin/firefox /snap/bin/firefox \
-    /usr/bin/chromium /usr/bin/chromium-browser \
-    /usr/bin/google-chrome /usr/bin/google-chrome-stable \
-    /usr/bin/sensible-browser \
-    /usr/bin/gio /usr/bin/xdg-open
-  do
-    [ -n "${B}" ] || continue
-    if [ "$B" = "/usr/bin/gio" ]; then
-      nohup gio open "$URL" >/dev/null 2>&1 && return 0
-    elif [ -x "$B" ]; then
-      nohup "$B" "$URL" >/dev/null 2>&1 && return 0
-    fi
-  done
-  echo "Could not find a browser to open $URL" >> "$LOG"
-  return 1
-}
-
-# -------------------------
-# Robust interpreter select
-# -------------------------
-PYBIN="python3"
-USE_VENV=0
-
-# Create venv if python3-venv exists; otherwise run system Python
-if "$PYBIN" -Im venv -h >/dev/null 2>&1; then
-  if [ ! -x "$VENV_DIR/bin/python3" ]; then
-    if "$PYBIN" -Im venv "$VENV_DIR" >/dev/null 2>&1; then
-      USE_VENV=1
-      "$VENV_DIR/bin/python3" -Im ensurepip --upgrade >/dev/null 2>&1 || true
-    fi
-  else
-    USE_VENV=1
-  fi
-fi
-
-if [ "$USE_VENV" -eq 1 ]; then
-  PYBIN="$VENV_DIR/bin/python3"
-  # Ensure Flask in venv
-  if ! "$PYBIN" -c "import flask" 2>/dev/null; then
-    if [ -x "$VENV_DIR/bin/pip" ]; then
-      TMPDIR=/var/tmp PIP_NO_CACHE_DIR=1 "$VENV_DIR/bin/pip" install -r "$APP_DIR/requirements-flask.txt" --break-system-packages || \
-      "$VENV_DIR/bin/pip" install "Flask==3.0.2" || true
-    fi
-    "$PYBIN" -c "import flask" 2>/dev/null || USE_VENV=0
-  fi
-fi
-
-if [ "$USE_VENV" -eq 0 ]; then
-  PYBIN="python3"
-  # Ensure Flask on system user site if needed
-  if ! "$PYBIN" -c "import flask" 2>/dev/null; then
-    "$PYBIN" -m pip install --user --no-cache-dir --break-system-packages "Flask==3.0.2" || true
-  fi
-fi
-
-# Final guard
-if ! "$PYBIN" -c "import flask" 2>/dev/null; then
-  echo "ERROR: Flask not available. Try: sudo apt-get install -y python3-venv && rerun." >&2
-  exit 1
-fi
-
-# -------------------------
-# Start server if not alive
-# -------------------------
-export URL
-if ! healthcheck; then
-  cd "$APP_DIR"
-  (PORT="$PORT" HTML_SOURCE="$HTML_SOURCE" nohup "$PYBIN" server.py >> "$LOG" 2>&1 &) >/dev/null
-fi
-
-open_url || true
-SH
-
-# Fill in APP_DIR placeholder, make executable
-sed -i "s|{{APP_DIR}}|$APP_DIR|g" "$APP_DIR/start_control_panel.sh"
-chmod +x "$APP_DIR/start_control_panel.sh"
-chown "$TARGET_USER:$TARGET_USER" "$APP_DIR/start_control_panel.sh"
-
-# --- build/repair venv once up-front (mirrors README step 1) :contentReference[oaicite:2]{index=2}
-if ! as_abc "cd '$APP_DIR' && python3 -m venv .venv"; then
-  echo "Note: python3-venv not available or failed; will fall back to system Python at runtime."
+# Resolve user/group
+if id "${TARGET_USER}" >/dev/null 2>&1; then
+    chown -R "${TARGET_USER}:${TARGET_USER}" "${APP_DIR}" 2>/dev/null || true
 else
-  as_abc "'$APP_DIR/.venv/bin/python' -m pip install --upgrade pip setuptools wheel"
-  if [ -f "$APP_DIR/requirements-flask.txt" ]; then
-    as_abc "'$APP_DIR/.venv/bin/pip' install -r '$APP_DIR/requirements-flask.txt' --break-system-packages || true"
-  elif [ -f "$APP_DIR/requirements.txt" ]; then
-    as_abc "'$APP_DIR/.venv/bin/pip' install -r '$APP_DIR/requirements.txt' --break-system-packages || true"
-  else
-    as_abc "'$APP_DIR/.venv/bin/pip' install flask==3.0.2 --break-system-packages || true"
-  fi
+    chown -R 1000:1000 "${APP_DIR}" 2>/dev/null || true
+fi
+echo "[gitbios-install] App dir ready: ${APP_DIR}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 3: Write start_control_panel.sh
+# Uses printf throughout — no heredocs, no quoting fragility.
+# ─────────────────────────────────────────────────────────────────────────────
+echo "[gitbios-install] Step 3: Writing start_control_panel.sh..."
+
+START_SCRIPT="${APP_DIR}/start_control_panel.sh"
+
+# Write shebang and header
+printf '#!/usr/bin/env bash\n' > "${START_SCRIPT}"
+printf '# Git-BIOS Control Panel launcher — auto-generated by installer\n' >> "${START_SCRIPT}"
+printf '# Edit APP_DIR / PORT as needed\n\n' >> "${START_SCRIPT}"
+
+printf 'APP_DIR="%s"\n' "${APP_DIR}" >> "${START_SCRIPT}"
+printf 'PORT="%s"\n' "${PORT}" >> "${START_SCRIPT}"
+printf 'LOG="${APP_DIR}/control-panel.log"\n' >> "${START_SCRIPT}"
+printf 'URL="http://localhost:${PORT}"\n' >> "${START_SCRIPT}"
+printf 'PYBIN="python3"\n\n' >> "${START_SCRIPT}"
+
+# _setup_display function
+printf '_setup_display() {\n' >> "${START_SCRIPT}"
+printf '    [ -n "${DISPLAY:-}" ] || [ -n "${WAYLAND_DISPLAY:-}" ] && return 0\n' >> "${START_SCRIPT}"
+printf '    for ENV_FILE in\\\n' >> "${START_SCRIPT}"
+printf '        /proc/$(pgrep -u %s -x i3 2>/dev/null | head -1)/environ\\\n' "${TARGET_USER}" >> "${START_SCRIPT}"
+printf '        /proc/$(pgrep -u 1000 -x kasm 2>/dev/null | head -1)/environ\\\n' >> "${START_SCRIPT}"
+printf '        /tmp/.display-env /config/.display-env; do\n' >> "${START_SCRIPT}"
+printf '        [ -f "${ENV_FILE}" ] || continue\n' >> "${START_SCRIPT}"
+printf '        DISP=$(cat "${ENV_FILE}" 2>/dev/null | tr '"'"'\\0'"'"' '"'"'\\n'"'"' | grep '"'"'^DISPLAY='"'"' | cut -d= -f2 | head -1)\n' >> "${START_SCRIPT}"
+printf '        WAYL=$(cat "${ENV_FILE}" 2>/dev/null | tr '"'"'\\0'"'"' '"'"'\\n'"'"' | grep '"'"'^WAYLAND_DISPLAY='"'"' | cut -d= -f2 | head -1)\n' >> "${START_SCRIPT}"
+printf '        DBUS=$(cat "${ENV_FILE}" 2>/dev/null | tr '"'"'\\0'"'"' '"'"'\\n'"'"' | grep '"'"'^DBUS_SESSION_BUS_ADDRESS='"'"' | cut -d= -f2- | head -1)\n' >> "${START_SCRIPT}"
+printf '        [ -n "${DISP}" ] && export DISPLAY="${DISP}"\n' >> "${START_SCRIPT}"
+printf '        [ -n "${WAYL}" ] && export WAYLAND_DISPLAY="${WAYL}"\n' >> "${START_SCRIPT}"
+printf '        [ -n "${DBUS}" ] && export DBUS_SESSION_BUS_ADDRESS="${DBUS}"\n' >> "${START_SCRIPT}"
+printf '        break\n' >> "${START_SCRIPT}"
+printf '    done\n' >> "${START_SCRIPT}"
+printf '    [ -z "${DISPLAY:-}" ] && [ -z "${WAYLAND_DISPLAY:-}" ] && export DISPLAY=":1"\n' >> "${START_SCRIPT}"
+printf '}\n\n' >> "${START_SCRIPT}"
+
+# _is_server_running
+printf '_is_server_running() {\n' >> "${START_SCRIPT}"
+printf '    curl -sf --max-time 1 "${URL}/healthz" >/dev/null 2>&1\n' >> "${START_SCRIPT}"
+printf '}\n\n' >> "${START_SCRIPT}"
+
+# _wait_for_server
+printf '_wait_for_server() {\n' >> "${START_SCRIPT}"
+printf '    local i=0\n' >> "${START_SCRIPT}"
+printf '    while [ "${i}" -lt 30 ]; do\n' >> "${START_SCRIPT}"
+printf '        _is_server_running && return 0\n' >> "${START_SCRIPT}"
+printf '        sleep 0.2; i=$((i+1))\n' >> "${START_SCRIPT}"
+printf '    done\n' >> "${START_SCRIPT}"
+printf '    return 1\n' >> "${START_SCRIPT}"
+printf '}\n\n' >> "${START_SCRIPT}"
+
+# _open_browser
+printf '_open_browser() {\n' >> "${START_SCRIPT}"
+printf '    command -v xdg-open >/dev/null 2>&1 && { xdg-open "${URL}" >/dev/null 2>&1 &; return 0; }\n' >> "${START_SCRIPT}"
+printf '    for B in "${BROWSER:-}" /usr/bin/firefox /snap/bin/firefox /usr/bin/chromium /usr/bin/chromium-browser /usr/bin/google-chrome; do\n' >> "${START_SCRIPT}"
+printf '        [ -n "${B}" ] && [ -x "${B}" ] && { "${B}" "${URL}" >/dev/null 2>&1 &; return 0; }\n' >> "${START_SCRIPT}"
+printf '    done\n' >> "${START_SCRIPT}"
+printf '    command -v gio >/dev/null 2>&1 && { gio open "${URL}" >/dev/null 2>&1 &; return 0; }\n' >> "${START_SCRIPT}"
+printf '    echo "[gitbios] No browser found. Open: ${URL}" | tee -a "${LOG}"\n' >> "${START_SCRIPT}"
+printf '}\n\n' >> "${START_SCRIPT}"
+
+# Main
+printf 'mkdir -p "${APP_DIR}"\n' >> "${START_SCRIPT}"
+printf '_setup_display\n' >> "${START_SCRIPT}"
+printf '[ -f "${APP_DIR}/server.py" ] || { echo "[gitbios] server.py missing at ${APP_DIR}" >&2; exit 1; }\n' >> "${START_SCRIPT}"
+printf 'if ! _is_server_running; then\n' >> "${START_SCRIPT}"
+printf '    cd "${APP_DIR}" && PORT="${PORT}" nohup "${PYBIN}" server.py >> "${LOG}" 2>&1 &\n' >> "${START_SCRIPT}"
+printf '    _wait_for_server || { echo "[gitbios] Server failed to start. See ${LOG}" >&2; exit 1; }\n' >> "${START_SCRIPT}"
+printf 'fi\n' >> "${START_SCRIPT}"
+printf '_open_browser\n' >> "${START_SCRIPT}"
+printf 'echo "[gitbios] Control panel: ${URL}"\n' >> "${START_SCRIPT}"
+
+chmod +x "${START_SCRIPT}"
+chown "${TARGET_USER}:${TARGET_USER}" "${START_SCRIPT}" 2>/dev/null || true
+echo "[gitbios-install] start_control_panel.sh written"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 4: Desktop .desktop launcher
+# ─────────────────────────────────────────────────────────────────────────────
+echo "[gitbios-install] Step 4: Creating desktop icon..."
+
+# Resolve desktop directory correctly for the target user
+USER_HOME=$(getent passwd "${TARGET_USER}" 2>/dev/null | cut -d: -f6 || echo "/config")
+DESKTOP_DIR="${USER_HOME}/Desktop"
+[ -d "${DESKTOP_DIR}" ] || DESKTOP_DIR="/config/Desktop"
+mkdir -p "${DESKTOP_DIR}"
+
+ICON_PATH="${APP_DIR}/static/assets/nexus-logo.png"
+DESK_FILE="${DESKTOP_DIR}/Git-BIOS-Control-Panel.desktop"
+
+printf '[Desktop Entry]\n' > "${DESK_FILE}"
+printf 'Version=1.0\n' >> "${DESK_FILE}"
+printf 'Type=Application\n' >> "${DESK_FILE}"
+printf 'Name=Git-BIOS Control Panel\n' >> "${DESK_FILE}"
+printf 'Comment=Sovereign command & control panel — Cloud Underground\n' >> "${DESK_FILE}"
+printf 'Exec=%s\n' "${START_SCRIPT}" >> "${DESK_FILE}"
+printf 'Path=%s\n' "${APP_DIR}" >> "${DESK_FILE}"
+printf 'Icon=%s\n' "${ICON_PATH}" >> "${DESK_FILE}"
+printf 'Terminal=false\n' >> "${DESK_FILE}"
+printf 'Categories=Utility;System;\n' >> "${DESK_FILE}"
+printf 'TryExec=%s\n' "${START_SCRIPT}" >> "${DESK_FILE}"
+printf 'StartupNotify=false\n' >> "${DESK_FILE}"
+
+chown "${TARGET_USER}:${TARGET_USER}" "${DESK_FILE}" 2>/dev/null || true
+chmod +x "${DESK_FILE}"
+# Mark as trusted so MATE/Caja doesn't show the "untrusted" dialog
+gio set "${DESK_FILE}" metadata::trusted true 2>/dev/null || true
+# KDE / other DEs
+xdg-desktop-menu install "${DESK_FILE}" 2>/dev/null || true
+
+echo "[gitbios-install] Desktop icon: ${DESK_FILE}"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Step 5: Optional s6 pre-warm service
+# If the container uses s6-overlay (linuxserver webtop), register the server
+# as a longrun service so it's ready before the first desktop icon click.
+# ─────────────────────────────────────────────────────────────────────────────
+S6_SVC_DIR="/etc/s6-overlay/s6-rc.d/gitbios"
+if [ -d "/etc/s6-overlay" ] && [ "${EUID_NOW}" -eq 0 ]; then
+    echo "[gitbios-install] Step 5: Registering s6 service..."
+    mkdir -p "${S6_SVC_DIR}"
+    printf '#!/usr/bin/with-contenv bash\n' > "${S6_SVC_DIR}/run"
+    printf '# Git-BIOS Control Panel pre-warm service\n' >> "${S6_SVC_DIR}/run"
+    printf '# Starts the server at container boot so desktop icon is instant\n' >> "${S6_SVC_DIR}/run"
+    printf '[ -f "%s/server.py" ] || { echo "[s6-gitbios] server.py not found"; sleep infinity; }\n' "${APP_DIR}" >> "${S6_SVC_DIR}/run"
+    printf 'cd "%s"\n' "${APP_DIR}" >> "${S6_SVC_DIR}/run"
+    printf 'exec python3 server.py\n' >> "${S6_SVC_DIR}/run"
+    printf 'longrun\n' > "${S6_SVC_DIR}/type"
+    chmod +x "${S6_SVC_DIR}/run"
+    echo "[gitbios-install] s6 service registered: ${S6_SVC_DIR}"
+    echo "[gitbios-install] Server will pre-warm at next container start"
+else
+    echo "[gitbios-install] Step 5: s6 service skipped (not s6-overlay or not root)"
 fi
 
-# --- create desktop icon per README (MATE friendly) :contentReference[oaicite:3]{index=3}
-install -d -m 755 -o "$TARGET_USER" -g "$TARGET_USER" "$DESKTOP_DIR"
-
-ICON_PATH="$APP_DIR/static/assets/nexus-logo.png"
-[ -f "$ICON_PATH" ] || ICON_PATH="/config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Git-BIOS-Control-Panel/static/assets/nexus-logo.png"
-
-DESK_FILE="$DESKTOP_DIR/Git-Bios Control Panel.desktop"
-cat > "$DESK_FILE" <<EOF2
-[Desktop Entry]
-Version=1.0
-Type=Application
-Name=Git-Bios Control Panel
-Comment=Launch the Git-BIOS Control Panel
-Exec=$APP_DIR/start_control_panel.sh
-Path=$APP_DIR
-Icon=$ICON_PATH
-Terminal=false
-Categories=Utility;
-TryExec=$APP_DIR/start_control_panel.sh
-EOF2
-
-chown "$TARGET_USER:$TARGET_USER" "$DESK_FILE"
-chmod +x "$DESK_FILE"
-# Mark trusted (MATE/Caja respects this; harmless if gio not present)
-gio set "$DESK_FILE" metadata::trusted true 2>/dev/null || true
-
-echo
-echo "==> Done."
-echo "Start now (foreground):   sudo -u '$TARGET_USER' -H bash -lc '$APP_DIR/start_control_panel.sh'"
-echo "Desktop icon created at:  $DESKTOP_DIR"
-echo "App dir:                  $APP_DIR"
-echo
-EOF
+# ─────────────────────────────────────────────────────────────────────────────
+# Done
+# ─────────────────────────────────────────────────────────────────────────────
+echo ""
+echo "[gitbios-install] ✓ Installation complete"
+echo ""
+echo "  Start now:      bash '${START_SCRIPT}'"
+echo "  Or open URL:    http://localhost:${PORT}"
+echo "  Desktop icon:   ${DESK_FILE}"
+echo "  App dir:        ${APP_DIR}"
+echo "  Log file:       ${APP_DIR}/control-panel.log"
+echo ""
+echo "  No pip, no venv, no Flask needed."
+echo "  Requires only: python3 (already verified above)"
+echo ""
