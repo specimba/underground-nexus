@@ -1,0 +1,128 @@
+[
+  {
+    "label": "System Info — CPU / Memory / Disk",
+    "command": "echo '=== CPU ===' && lscpu | grep -E 'Model name|Socket|Core|Thread' && echo '=== MEMORY ===' && free -h && echo '=== DISK ===' && df -h",
+    "interactive": false,
+    "privileged": false
+  },
+  {
+    "label": "Kernel Version + Loaded Modules",
+    "command": "uname -r && lsmod | head -30",
+    "interactive": false,
+    "privileged": false
+  },
+  {
+    "label": "WARNING! Load Kernel Module (edit command first)",
+    "command": "modprobe uio",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "WARNING! Unload Kernel Module (edit command first)",
+    "command": "modprobe -r uio",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "eBPF — List Running BPF Programs",
+    "command": "bpftool prog list 2>/dev/null || echo 'bpftool not installed: sudo apt install linux-tools-$(uname -r)'",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "eBPF — Trace System Calls (5s sample)",
+    "command": "timeout 5 bpftrace -e 'tracepoint:raw_syscalls:sys_enter { @[comm] = count(); } END { print(@); }' 2>/dev/null || echo 'bpftrace not installed: sudo apt install bpftrace'",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "eBPF — Trace Block I/O Latency (5s sample)",
+    "command": "timeout 5 bpftrace -e 'tracepoint:block:block_rq_complete { @ns[args->rwbs] = hist(args->nr_sector); } END { print(@ns); }' 2>/dev/null || echo 'bpftrace not installed'",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "GPIO — List Available GPIO Chips",
+    "command": "ls /dev/gpiochip* 2>/dev/null && gpioinfo 2>/dev/null || echo 'No GPIO chips found (check --privileged and /dev passthrough)'",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "GPIO — Read All Lines (chip 0)",
+    "command": "gpioinfo gpiochip0 2>/dev/null || echo 'libgpiod not installed: sudo apt install gpiod'",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "I2C — Scan Bus 1 for Devices",
+    "command": "i2cdetect -y 1 2>/dev/null || echo 'i2c-tools not installed: sudo apt install i2c-tools'",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "CAN Bus — Show Interface Status",
+    "command": "ip -details link show type can 2>/dev/null || echo 'No CAN interfaces found'",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "CAN Bus — Bring Up can0 at 500kbps",
+    "command": "ip link set can0 type can bitrate 500000 && ip link set up can0 && echo 'can0 up at 500kbps'",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "Real-Time — Set Process Priority (edit PID/nice first)",
+    "command": "renice -n -10 -p $(pgrep -f ros2 | head -1) 2>/dev/null && echo 'Priority set' || echo 'No ROS2 process found'",
+    "interactive": false,
+    "privileged": true
+  },
+  {
+    "label": "Real-Time — Enable PREEMPT_RT Check",
+    "command": "uname -v | grep -i preempt && echo 'PREEMPT_RT kernel active' || echo 'Standard kernel (not PREEMPT_RT)'",
+    "interactive": false,
+    "privileged": false
+  },
+  {
+    "label": "ROS2 — Check ROS2 Environment",
+    "command": "env | grep -i ros && ros2 --version 2>/dev/null || echo 'ROS2 not sourced. Source with: source /opt/ros/humble/setup.bash'",
+    "interactive": false,
+    "privileged": false
+  },
+  {
+    "label": "ROS2 — List Active Nodes",
+    "command": "ros2 node list 2>/dev/null || echo 'No ROS2 nodes running or ROS2 not installed'",
+    "interactive": false,
+    "privileged": false
+  },
+  {
+    "label": "ROS2 — Launch ROS2 CLI (interactive)",
+    "command": "bash --rcfile <(echo 'source /opt/ros/humble/setup.bash 2>/dev/null || true; PS1=\"[ROS2]\\$ \"')",
+    "interactive": true,
+    "privileged": false
+  },
+  {
+    "label": "Docker — List Running Containers",
+    "command": "docker ps --format 'table {{.Names}}\\t{{.Status}}\\t{{.Ports}}'",
+    "interactive": false,
+    "privileged": false
+  },
+  {
+    "label": "Docker — Container CPU/Memory Stats",
+    "command": "docker stats --no-stream --format 'table {{.Name}}\\t{{.CPUPerc}}\\t{{.MemUsage}}'",
+    "interactive": false,
+    "privileged": false
+  },
+  {
+    "label": "Network — Active Connections Summary",
+    "command": "ss -tuln && echo '---' && ip route",
+    "interactive": false,
+    "privileged": false
+  },
+  {
+    "label": "Backup All Saved Buttons",
+    "command": "__INTERNAL_BACKUP__",
+    "interactive": false,
+    "privileged": false
+  }
+]

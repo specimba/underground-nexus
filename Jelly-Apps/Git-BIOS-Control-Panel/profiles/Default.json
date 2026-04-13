@@ -2,56 +2,67 @@
   {
     "label": "Terminator CLI",
     "command": "bash",
-    "interactive": true
+    "interactive": true,
+    "privileged": false
   },
   {
     "label": "Launch Update and Chaos Manager CLI - Athena0",
     "command": "sudo docker exec -it Athena0 bash",
-    "interactive": true
+    "interactive": true,
+    "privileged": false
   },
   {
     "label": "Launch Application Menu",
     "command": "rofi -show drun",
-    "interactive": false
+    "interactive": false,
+    "privileged": false
   },
   {
     "label": "Open Minimized Windows",
     "command": "rofi -show window",
-    "interactive": false
+    "interactive": false,
+    "privileged": false
   },
   {
     "label": "Install nmap",
     "command": "sudo apt install nmap -y",
-    "interactive": false
+    "interactive": false,
+    "privileged": false
   },
   {
     "label": "Launch Firefox",
     "command": "firefox &",
-    "interactive": false
+    "interactive": false,
+    "privileged": false
   },
   {
     "label": "Close Firefox",
     "command": "pkill firefox",
-    "interactive": false
+    "interactive": false,
+    "privileged": false
   },
   {
     "label": "Update and Repair Filesystem",
     "command": "sudo apt update --fix-missing && sudo apt update && sudo apt upgrade -y --fix-broken && sudo apt full-upgrade -y && sudo apt autoremove -y && sudo apt clean && sudo dpkg --configure -a && df -h && free -h",
-    "interactive": true
+    "interactive": true,
+    "privileged": false
   },
   {
     "label": "Restart Workbench",
     "command": "sudo docker restart workbench",
-    "interactive": false
+    "interactive": false,
+    "privileged": false
   },
   {
     "label": "Deploy NCV Student Sandbox",
     "command": "sudo bash /config/Desktop/nexus-bucket/underground-nexus/Jelly-Apps/Nexus-Creator-Vault/nexus-creator-vault.jelly.bash",
-    "interactive": false
+    "interactive": false,
+    "privileged": false
   },
   {
     "label": "Get Doppelganger Packages (to desktop)",
     "command": "cp /config/Desktop/nexus-bucket/underground-nexus/'Dagger CI'/Scripts/install-doppelganger.sh /config/Desktop/install-doppelganger.sh",
-    "interactive": false
+    "interactive": false,
+    "privileged": false
   }
 ]
