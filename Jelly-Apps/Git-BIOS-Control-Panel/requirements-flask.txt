@@ -1,2 +1,14 @@
-Flask>=3.0
-requests>=2.28
+# =============================================================================
+# Git-BIOS Control Panel — requirements-flask.txt
+# =============================================================================
+#
+# NOTE: This file is NO LONGER REQUIRED.
+# server.py has been rewritten to use Python stdlib only (http.server, json,
+# subprocess, threading, urllib). No pip install needed. No venv needed.
+#
+# This file is kept for reference only in case a future version requires
+# external dependencies. If you add Flask back, uncomment:
+#
+# flask==3.0.2
+#
+# And re-run the installer: bash install-git-bios-control-panel.sh
