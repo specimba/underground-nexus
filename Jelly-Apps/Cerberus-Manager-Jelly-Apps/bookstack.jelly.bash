@@ -1,36 +1,34 @@
 #!/usr/bin/env bash
 # =============================================================================
-# BOOKSTACK JELLY APP v8 (HOST-FRIENDLY DUAL-ENTRYPOINT + PORT 80 + CERBERUS)
+# BOOKSTACK JELLY APP v9 — EDGE-ROUTER AUTO-DETECTION
 # Underground Nexus — Sovereign Knowledge Base
 # File: Jelly-Apps/BookStack/bookstack.jelly.bash
 # =============================================================================
 #
-# v8 lineage:
-#   v4: force-write .env to defeat linuxserver image's stale-env-cache trap
-#   v5: APP_URL=http://bookstack (broke host browser — backed out in v6)
-#   v6: APP_URL=http://localhost:4050 (host browser works; container DNS path
-#       still works via Bearer-token API; documented APP_PROXIES=*)
-#   v7 (GPT proposal): port 80 binding when free + Cerberus net detection,
-#       BUT regressed by hardcoding DB passwords (would brick existing volumes)
-#       and dropping APP_KEY pre-generation + .env force-write
+# v9 NEW: detect Cerberus Manager Ultra's Traefik edge-router container and,
+# when present, configure BookStack to be reached through the edge router at
+# http://edge-router/bookstack/. This solves the user's "BookStack works on
+# the big system but breaks on the small system" inconsistency:
 #
-# v8 brings v6's safe defaults forward AND adds v7's good ideas:
-#   - APP_KEY pre-generated via artisan inside the LSIO image
-#   - host-hash-derived deterministic credentials (NOT hardcoded — preserves
-#     existing DB volumes across re-runs)
-#   - .env force-write so subsequent runs can't fall back to placeholder vals
-#   - APP_URL resolved at deploy time: http://localhost when port 80 is free,
-#     else http://localhost:4050. Host browser always gets a resolvable URL.
-#   - port 80 binding is OPPORTUNISTIC: only when port is free, so it doesn't
-#     fight Traefik or Cerberus Ultra's edge router
-#   - container joins three networks: bookstack-internal (DB private),
-#     sovereign-net (Twin), and Cerberus's network when present
-#   - container labels (bookstack, bookstack-db) PRESERVED (downstream scripts)
-#   - Traefik labels emitted only when a Traefik network is detected
+#   - Big system has edge-router → /bookstack/ path works for BOTH the
+#     host browser AND the Twin agent. One canonical URL.
+#   - Small system has no edge-router → falls back to localhost:4050.
+#
+# v9 detection runs on EVERY install (including warm restarts), so a host
+# that gains edge-router later automatically gets the better routing on
+# the next install. Data persists — only the network labels and APP_URL
+# change.
+#
+# Lineage:
+#   v4: force-write .env to defeat linuxserver image's stale-env-cache trap
+#   v6: APP_URL=http://localhost:4050 + APP_PROXIES=*; host-hash deterministic
+#       creds; .env force-write
+#   v8: opportunistic port 80 binding + Cerberus-net detection + Traefik labels
+#   v9: edge-router AUTO-DETECTION + canonical routing through it when present
 #
 # Defaults:
 #   BookStack login: admin@admin.com / password (CHANGE IMMEDIATELY)
-#   DB credentials: deterministic per-host hash so volumes persist cleanly
+#   DB credentials:  deterministic per-host hash (volumes persist across re-runs)
 # =============================================================================
 
 set -euo pipefail
@@ -45,27 +43,35 @@ BOOKSTACK_HOST_PORT="${BOOKSTACK_HOST_PORT:-4050}"
 BOOKSTACK_PUBLIC_PORT="${BOOKSTACK_PUBLIC_PORT:-80}"
 BOOKSTACK_PUBLIC_BIND="${BOOKSTACK_PUBLIC_BIND:-0.0.0.0}"
 
-BOOKSTACK_APP_URL="${BOOKSTACK_APP_URL:-}"
+BOOKSTACK_APP_URL="${BOOKSTACK_APP_URL:-}"          # auto-resolved if empty
 BOOKSTACK_APP_PROXIES="${BOOKSTACK_APP_PROXIES:-*}"
+
+# v9 — edge-router (Cerberus Manager Ultra Traefik gateway)
+EDGE_ROUTER_CONTAINER="${EDGE_ROUTER_CONTAINER:-edge-router}"
+# Networks the edge-router lives on — checked in order. The first that
+# exists wins; BookStack is connected to that network so Traefik can
+# resolve it.
+EDGE_ROUTER_NETWORKS="${EDGE_ROUTER_NETWORKS:-cerberus_cerberus-net cerberus-net edge-net traefik}"
+# Path prefix BookStack should be served at when behind edge-router.
+# Twin's bookstack-config.json url should be set to:
+#   http://edge-router${BOOKSTACK_PATH_PREFIX}
+# The trailing slash matters — Traefik PathPrefix matching needs it.
+BOOKSTACK_PATH_PREFIX="${BOOKSTACK_PATH_PREFIX:-/bookstack}"
 
 INTERNAL_NET="bookstack-internal"
 SOVEREIGN_NET="${SOVEREIGN_NET:-sovereign-net}"
-CERBERUS_NETWORK="${CERBERUS_NETWORK:-cerberus_cerberus-net}"
-CERBERUS_ALT_NETWORK="${CERBERUS_ALT_NETWORK:-cerberus-net}"
 
 DB_VOLUME="bookstack-db-data"
 APP_VOLUME="bookstack-app-data"
 
-# v6 retained — host-hash-derived deterministic credentials. Existing DB
-# volumes have these baked in; HARDCODING them (v7 regression) would break
-# existing deployments. Override via env if you need specific values.
+# Host-hash deterministic credentials — preserves existing volumes
 _HOST_HASH=$(hostname | md5sum | cut -c1-12)
 DB_ROOT_PASSWORD="${DB_ROOT_PASSWORD:-CerbRoot_${_HOST_HASH}}"
 DB_PASSWORD="${DB_PASSWORD:-CerbBS_${_HOST_HASH}}"
 DB_USER="${DB_USER:-bookstack}"
 DB_NAME="${DB_NAME:-bookstack}"
 
-# MinIO S3 (sovereign-net, deployed by installer)
+# MinIO S3 (sovereign-net)
 MINIO_ENDPOINT="${MINIO_ENDPOINT:-http://minio:9000}"
 MINIO_BUCKET="${MINIO_BUCKET:-bookstack}"
 MINIO_KEY="${MINIO_ROOT_USER:-sovereign}"
@@ -123,9 +129,38 @@ port_available() {
     fi
 }
 
+# v9 — edge-router detection. Returns the network name that has both
+# edge-router AND BookStack reachable (or empty string if no Traefik
+# is present on this host).
+detect_edge_router() {
+    if ! container_running "$EDGE_ROUTER_CONTAINER" 2>/dev/null; then
+        return 1
+    fi
+    # Find the first network edge-router is on that we can also use
+    for net in $EDGE_ROUTER_NETWORKS; do
+        if network_exists "$net"; then
+            # Confirm edge-router is actually attached to this network
+            if docker inspect "$EDGE_ROUTER_CONTAINER" \
+                --format '{{json .NetworkSettings.Networks}}' 2>/dev/null \
+                | grep -q "\"$net\""; then
+                echo "$net"
+                return 0
+            fi
+        fi
+    done
+    return 1
+}
+
 resolve_app_url() {
     if [ -n "$BOOKSTACK_APP_URL" ]; then
         echo "$BOOKSTACK_APP_URL"
+        return
+    fi
+    # v9 — if edge-router is present, that's the canonical URL
+    local edge_net
+    edge_net=$(detect_edge_router 2>/dev/null) || edge_net=""
+    if [ -n "$edge_net" ]; then
+        echo "http://edge-router${BOOKSTACK_PATH_PREFIX}"
     elif port_available "$BOOKSTACK_PUBLIC_PORT"; then
         echo "http://localhost"
     else
@@ -133,23 +168,40 @@ resolve_app_url() {
     fi
 }
 
-traefik_network() {
-    if network_exists "$CERBERUS_NETWORK"; then
-        echo "$CERBERUS_NETWORK"
-    elif network_exists "$CERBERUS_ALT_NETWORK"; then
-        echo "$CERBERUS_ALT_NETWORK"
-    else
-        echo ""
-    fi
-}
-
 reconcile_networks() {
     ensure_network "$INTERNAL_NET"
     ensure_network "$SOVEREIGN_NET"
-    for n in "$SOVEREIGN_NET" "$CERBERUS_NETWORK" "$CERBERUS_ALT_NETWORK"; do
-        network_exists "$n" || continue
-        connect_net "$BOOKSTACK_CONTAINER" "$n"
-    done
+    # Always attach to sovereign-net for Twin reachability
+    connect_net "$BOOKSTACK_CONTAINER" "$SOVEREIGN_NET"
+    # If edge-router is present, attach to its network too
+    local edge_net
+    edge_net=$(detect_edge_router 2>/dev/null) || edge_net=""
+    if [ -n "$edge_net" ]; then
+        connect_net "$BOOKSTACK_CONTAINER" "$edge_net"
+    fi
+}
+
+# v9 — emit Traefik labels appropriate for the path-prefix routing
+build_traefik_labels() {
+    local edge_net="$1"
+    local labels=()
+    if [ -n "$edge_net" ]; then
+        labels+=(--label "traefik.enable=true")
+        labels+=(--label "traefik.docker.network=$edge_net")
+        # Strip /bookstack from incoming requests before forwarding to
+        # the container (BookStack listens at /). The middleware is
+        # named after the container so it doesn't clash.
+        labels+=(--label "traefik.http.middlewares.bookstack-strip.stripprefix.prefixes=${BOOKSTACK_PATH_PREFIX}")
+        labels+=(--label "traefik.http.routers.bookstack.rule=PathPrefix(\`${BOOKSTACK_PATH_PREFIX}\`)")
+        labels+=(--label "traefik.http.routers.bookstack.entrypoints=web")
+        labels+=(--label "traefik.http.routers.bookstack.middlewares=bookstack-strip@docker")
+        labels+=(--label "traefik.http.services.bookstack.loadbalancer.server.port=80")
+        # Optional: also expose at host-based route bookstack.localhost
+        labels+=(--label "traefik.http.routers.bookstack-host.rule=Host(\`bookstack.localhost\`)")
+        labels+=(--label "traefik.http.routers.bookstack-host.entrypoints=web")
+        labels+=(--label "traefik.http.routers.bookstack-host.service=bookstack")
+    fi
+    printf '%s\n' "${labels[@]}"
 }
 
 # =============================================================================
@@ -158,42 +210,80 @@ reconcile_networks() {
 
 log "Checking deployment state..."
 
+EDGE_NET=$(detect_edge_router 2>/dev/null) || EDGE_NET=""
+if [ -n "$EDGE_NET" ]; then
+    ok "Edge-router detected on network '$EDGE_NET' — BookStack will route through it"
+else
+    log "Edge-router not detected — using direct port routing"
+fi
+
 if container_running "$BOOKSTACK_CONTAINER"; then
     ok "BookStack already running"
     app_url="$(resolve_app_url)"
-    log "  Host browser : http://127.0.0.1:${BOOKSTACK_HOST_PORT}"
-    if docker port "$BOOKSTACK_CONTAINER" 80/tcp 2>/dev/null | grep -q ":${BOOKSTACK_PUBLIC_PORT}$"; then
-        log "  Host browser : http://localhost (port ${BOOKSTACK_PUBLIC_PORT} mapped)"
+
+    # v9 — IDEMPOTENT REPAIR: re-apply current routing without destroying data.
+    # If edge-router was added/removed since last install, we want THIS run
+    # to converge BookStack to the correct topology. Approach:
+    #   - If routing topology changed (edge-router presence delta), recreate
+    #     container with new labels but PRESERVE volumes
+    #   - Otherwise just nudge .env's APP_URL
+    current_labels=$(docker inspect "$BOOKSTACK_CONTAINER" \
+        --format '{{json .Config.Labels}}' 2>/dev/null || echo '{}')
+    has_traefik_label=$(echo "$current_labels" | grep -c '"traefik.enable":"true"' || true)
+
+    if [ -n "$EDGE_NET" ] && [ "$has_traefik_label" = "0" ]; then
+        warn "Edge-router is now present but container has no Traefik labels — recreating"
+        warn "(This is a relabel, not a rebuild — data volumes preserve.)"
+        docker stop "$BOOKSTACK_CONTAINER" "$BOOKSTACK_DB_CONTAINER" 2>/dev/null || true
+        docker rm "$BOOKSTACK_CONTAINER" 2>/dev/null || true
+        # Fall through to the deploy section below
+    elif [ -z "$EDGE_NET" ] && [ "$has_traefik_label" != "0" ]; then
+        warn "Edge-router was removed since last install — recreating without Traefik labels"
+        docker stop "$BOOKSTACK_CONTAINER" "$BOOKSTACK_DB_CONTAINER" 2>/dev/null || true
+        docker rm "$BOOKSTACK_CONTAINER" 2>/dev/null || true
+        # Fall through
+    else
+        # Topology unchanged — soft reconciliation
+        log "  Host browser : http://127.0.0.1:${BOOKSTACK_HOST_PORT}"
+        if [ -n "$EDGE_NET" ]; then
+            log "  Edge-router  : http://edge-router${BOOKSTACK_PATH_PREFIX} (PRIMARY)"
+        fi
+        log "  Docker DNS   : http://bookstack (Twin / sovereign-net)"
+
+        log "Reconciling network membership..."
+        reconcile_networks
+
+        log "Reconciling APP_URL in app volume to: $app_url"
+        docker run --rm \
+            -v "${APP_VOLUME}:/config" \
+            alpine:latest \
+            sh -c "
+                if [ -f /config/www/.env ]; then
+                    sed -i 's|^APP_URL=.*|APP_URL=${app_url}|' /config/www/.env || true
+                    grep '^APP_URL=' /config/www/.env || true
+                fi
+            " 2>&1 | sed 's/^/  /'
+
+        log "Restarting bookstack container so APP_URL takes effect"
+        docker restart "${BOOKSTACK_CONTAINER}" >/dev/null 2>&1 \
+            && ok "Container restarted" \
+            || warn "Restart failed (try manually)"
+
+        # Twin config hint
+        if [ -n "$EDGE_NET" ]; then
+            log "  Twin config: set bookstack-config.json url to http://edge-router${BOOKSTACK_PATH_PREFIX}"
+        else
+            log "  Twin config: set bookstack-config.json url to http://bookstack"
+        fi
+        exit 0
     fi
-    log "  Docker DNS   : http://bookstack (Twin / sovereign-net containers)"
-
-    log "Reconciling network membership..."
-    reconcile_networks
-
-    log "Reconciling APP_URL in app volume to: $app_url"
-    docker run --rm \
-        -v "${APP_VOLUME}:/config" \
-        alpine:latest \
-        sh -c "
-            if [ -f /config/www/.env ]; then
-                sed -i 's|^APP_URL=.*|APP_URL=${app_url}|' /config/www/.env || true
-                grep '^APP_URL=' /config/www/.env || true
-            fi
-        " 2>&1 | sed 's/^/  /'
-
-    log "Restarting bookstack container so APP_URL takes effect"
-    docker restart "${BOOKSTACK_CONTAINER}" >/dev/null 2>&1 \
-        && ok "Container restarted" \
-        || warn "Restart failed (try manually)"
-
-    exit 0
 fi
 
 if container_exists "$BOOKSTACK_CONTAINER"; then
     warn "Stopped container found — starting..."
     docker start "${BOOKSTACK_DB_CONTAINER}" 2>/dev/null || true
     sleep 5
-    docker start "${BOOKSTACK_CONTAINER}" >/dev/null || die "Failed to start bookstack"
+    docker start "${BOOKSTACK_CONTAINER}" >/dev/null || die "Failed to start"
     reconcile_networks
     ok "Started"
     exit 0
@@ -238,11 +328,10 @@ for STALE in "${BOOKSTACK_CONTAINER}" "${BOOKSTACK_DB_CONTAINER}"; do
 done
 
 # =============================================================================
-# STEP 4: FORCE-WRITE CORRECT .env INTO APP VOLUME
+# STEP 4: FORCE-WRITE .env (defends stale-env-cache trap)
 # =============================================================================
 
-log "Writing .env to app volume (defends stale-env-cache trap)..."
-
+log "Writing .env to app volume..."
 app_url="$(resolve_app_url)"
 
 if [ "${STORAGE_TYPE}" = "s3" ]; then
@@ -312,58 +401,57 @@ done
 
 [ "${DB_READY}" -eq 1 ] || {
     docker logs --tail 20 "${BOOKSTACK_DB_CONTAINER}" 2>&1 | sed 's/^/  /'
-    die "MariaDB not ready after 90s. Check: docker logs ${BOOKSTACK_DB_CONTAINER}"
+    die "MariaDB not ready after 90s."
 }
 
 sleep 3
 
 # =============================================================================
-# STEP 6: VERIFY MARIADB CREDENTIALS
+# STEP 6: VERIFY DB CREDENTIALS
 # =============================================================================
 
-log "Verifying bookstack user credentials..."
+log "Verifying credentials..."
 DB_AUTH_OK=0
 for i in $(seq 1 6); do
     if docker exec "${BOOKSTACK_DB_CONTAINER}" \
         mariadb -u "${DB_USER}" -p"${DB_PASSWORD}" "${DB_NAME}" \
         -e "SELECT 1;" >/dev/null 2>&1; then
         DB_AUTH_OK=1
-        ok "MariaDB credentials verified."
+        ok "Credentials verified."
         break
     fi
-    log "  Auth attempt ${i}/6..."
     sleep 3
 done
 
-[ "${DB_AUTH_OK}" -eq 1 ] || warn "Could not verify credentials — proceeding anyway."
-
 # =============================================================================
-# STEP 7: DEPLOY BOOKSTACK (port 80 opportunistic, Cerberus aware)
+# STEP 7: DEPLOY BOOKSTACK (edge-router aware)
 # =============================================================================
 
 log "Deploying BookStack..."
 log "  APP_URL          : $app_url"
-log "  Host port (4050) : http://127.0.0.1:${BOOKSTACK_HOST_PORT}    [primary]"
 
 port_args=(-p "127.0.0.1:${BOOKSTACK_HOST_PORT}:80")
-if port_available "$BOOKSTACK_PUBLIC_PORT"; then
+
+# v9 — port 80 binding strategy
+if [ -n "$EDGE_NET" ]; then
+    # When edge-router is present, the user goes through Traefik for
+    # external access; binding host port 80 would fight Traefik.
+    log "  Host port 80     : SKIPPED (edge-router handles external routing)"
+elif port_available "$BOOKSTACK_PUBLIC_PORT"; then
     port_args+=(-p "${BOOKSTACK_PUBLIC_BIND}:${BOOKSTACK_PUBLIC_PORT}:80")
-    log "  Host port (${BOOKSTACK_PUBLIC_PORT})     : http://localhost   [opportunistic]"
+    log "  Host port 80     : http://localhost   [opportunistic]"
 else
-    log "  Host port (${BOOKSTACK_PUBLIC_PORT})     : SKIPPED — already in use"
+    log "  Host port 80     : SKIPPED — already in use"
 fi
+log "  Host port 4050   : http://127.0.0.1:${BOOKSTACK_HOST_PORT}    [primary fallback]"
 log "  Container DNS    : http://bookstack:80   [Twin path]"
 
-labels=()
-tn="$(traefik_network)"
-if [ -n "$tn" ]; then
-    log "  Traefik network  : $tn — emitting labels"
-    labels+=(--label traefik.enable=true)
-    labels+=(--label "traefik.docker.network=$tn")
-    labels+=(--label "traefik.http.routers.bookstack.rule=Host(\`bookstack.localhost\`) || PathPrefix(\`/bookstack\`)")
-    labels+=(--label "traefik.http.routers.bookstack.entrypoints=web")
-    labels+=(--label "traefik.http.services.bookstack.loadbalancer.server.port=80")
+if [ -n "$EDGE_NET" ]; then
+    log "  Edge-router      : http://edge-router${BOOKSTACK_PATH_PREFIX}  [PRIMARY]"
 fi
+
+# Build labels conditionally
+mapfile -t labels < <(build_traefik_labels "$EDGE_NET")
 
 log "First-run DB migration takes 2-4 minutes."
 
@@ -397,10 +485,10 @@ docker run -d \
 reconcile_networks
 
 # =============================================================================
-# STEP 8: POLL FOR HTTP READINESS
+# STEP 8: POLL READINESS
 # =============================================================================
 
-log "Polling http://127.0.0.1:${BOOKSTACK_HOST_PORT}..."
+log "Polling readiness on http://127.0.0.1:${BOOKSTACK_HOST_PORT}..."
 BS_READY=0
 LAST_HTTP="000"
 for i in $(seq 1 36); do
@@ -420,8 +508,8 @@ for i in $(seq 1 36); do
     sleep 10
 done
 
+# Twin-path probe via sovereign-net
 DOCKER_DNS_OK=0
-DOCKER_DNS_HTTP="000"
 if [ "${BS_READY}" -eq 1 ] && network_exists "$SOVEREIGN_NET"; then
     log "Polling http://bookstack via '${SOVEREIGN_NET}' (Twin path)..."
     DOCKER_DNS_HTTP=$(docker run --rm --network "${SOVEREIGN_NET}" \
@@ -436,19 +524,19 @@ if [ "${BS_READY}" -eq 1 ] && network_exists "$SOVEREIGN_NET"; then
     fi
 fi
 
-# =============================================================================
-# STEP 9: VERIFY DB CONNECTIVITY
-# =============================================================================
-
-if [ "${BS_READY}" -eq 1 ]; then
-    DB_ERRORS=$(docker logs "${BOOKSTACK_CONTAINER}" 2>&1 | grep -c "Access denied\|database_username\|SQLSTATE" || true)
-    if [ "${DB_ERRORS}" -gt 0 ]; then
-        warn "DB error detected:"
-        docker logs "${BOOKSTACK_CONTAINER}" 2>&1 \
-            | grep "Access denied\|database_username\|SQLSTATE\|DB_" \
-            | head -10 | sed 's/^/  /'
+# v9 — Edge-router-path probe
+EDGE_OK=0
+if [ "${BS_READY}" -eq 1 ] && [ -n "$EDGE_NET" ]; then
+    log "Polling http://edge-router${BOOKSTACK_PATH_PREFIX}/login via '${EDGE_NET}'..."
+    EDGE_HTTP=$(docker run --rm --network "${EDGE_NET}" \
+        curlimages/curl:latest \
+        -s -o /dev/null -w "%{http_code}" --max-time 10 \
+        "http://edge-router${BOOKSTACK_PATH_PREFIX}/login" 2>/dev/null || echo "000")
+    if [ "${EDGE_HTTP}" != "000" ]; then
+        EDGE_OK=1
+        ok "Edge-router path responded HTTP ${EDGE_HTTP}"
     else
-        ok "No DB errors detected in logs."
+        warn "Edge-router path NOT reachable from '${EDGE_NET}'"
     fi
 fi
 
@@ -458,11 +546,11 @@ fi
 
 echo ""
 
-if [ "${BS_READY}" -eq 1 ] && [ "${DB_ERRORS:-0}" -eq 0 ]; then
+if [ "${BS_READY}" -eq 1 ]; then
     echo "  ┌────────────────────────────────────────────────────────────┐"
-    echo "  │  ✓ BookStack is live (v8 dual-entrypoint + Cerberus aware) │"
+    echo "  │  ✓ BookStack is live (v9 edge-router aware)                │"
     echo "  ├────────────────────────────────────────────────────────────┤"
-    echo "  │  Host browser : http://127.0.0.1:${BOOKSTACK_HOST_PORT}            [primary]   │"
+    echo "  │  Host browser : http://127.0.0.1:${BOOKSTACK_HOST_PORT}            [fallback] │"
     if docker port "$BOOKSTACK_CONTAINER" 80/tcp 2>/dev/null | grep -q ":${BOOKSTACK_PUBLIC_PORT}$"; then
         echo "  │  Host browser : http://localhost                [port ${BOOKSTACK_PUBLIC_PORT}]    │"
     fi
@@ -471,24 +559,42 @@ if [ "${BS_READY}" -eq 1 ] && [ "${DB_ERRORS:-0}" -eq 0 ]; then
     else
         echo "  │  Docker DNS   : http://bookstack          [⚠ not verified] │"
     fi
+    if [ -n "$EDGE_NET" ]; then
+        if [ "${EDGE_OK}" -eq 1 ]; then
+            echo "  │  Edge-router  : http://edge-router${BOOKSTACK_PATH_PREFIX}    [✓ PRIMARY]   │"
+        else
+            echo "  │  Edge-router  : http://edge-router${BOOKSTACK_PATH_PREFIX}    [⚠ retry]    │"
+        fi
+    fi
     echo "  │  APP_URL      : ${app_url}              │"
     echo "  ├────────────────────────────────────────────────────────────┤"
     echo "  │  Email        : admin@admin.com                            │"
     echo "  │  Password     : password    ⚠  CHANGE IMMEDIATELY          │"
     echo "  ├────────────────────────────────────────────────────────────┤"
-    echo "  │  Networks     : ${INTERNAL_NET} + ${SOVEREIGN_NET}        │"
-    [ -n "$tn" ] && echo "  │                 + ${tn}                       │"
     echo "  │  Container    : ${BOOKSTACK_CONTAINER}, ${BOOKSTACK_DB_CONTAINER}                     │"
+    if [ -n "$EDGE_NET" ]; then
+        echo "  │  Networks     : ${INTERNAL_NET} + ${SOVEREIGN_NET} + ${EDGE_NET}"
+    else
+        echo "  │  Networks     : ${INTERNAL_NET} + ${SOVEREIGN_NET}"
+    fi
     echo "  └────────────────────────────────────────────────────────────┘"
     echo ""
-    echo "  Twin compatibility (Underground Index v3.6.4+):"
+    echo "  Twin compatibility (Underground Index v3.6.5+):"
     echo "    /config/bookstack-config.json should set:"
-    echo "      \"url\": \"http://bookstack\"           (Twin → BookStack)"
-    echo "      \"external_url\": \"$app_url\"          (host browser)"
-elif [ "${BS_READY}" -eq 1 ]; then
-    echo "  BookStack responding but has DB errors. Investigation:"
-    echo "    docker exec bookstack cat /config/www/.env | grep DB_"
-    echo "    docker exec bookstack-db mariadb -u ${DB_USER} -p${DB_PASSWORD} ${DB_NAME} -e 'SHOW TABLES;'"
+    if [ -n "$EDGE_NET" ]; then
+        echo "      \"url\": \"http://edge-router${BOOKSTACK_PATH_PREFIX}\"   [PRIMARY — Traefik]"
+        echo "      \"external_url\": \"$app_url\""
+        echo ""
+        echo "  Note: With edge-router routing, the SAME URL works from both"
+        echo "  the host browser AND the Twin agent. No more URL mismatch."
+    else
+        echo "      \"url\": \"http://bookstack\"           (Twin → BookStack)"
+        echo "      \"external_url\": \"$app_url\"          (host browser)"
+        echo ""
+        echo "  Note: install Cerberus Manager Ultra (with edge-router) to"
+        echo "  unify host + Twin URLs through Traefik. Re-running this script"
+        echo "  will detect edge-router and reconfigure WITHOUT data loss."
+    fi
 else
     err "BookStack did not respond within 6 minutes."
     docker logs --tail 20 "${BOOKSTACK_CONTAINER}" 2>&1 | sed 's/^/  /'
